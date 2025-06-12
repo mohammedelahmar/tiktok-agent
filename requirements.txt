@@ -1,0 +1,8 @@
+# Dependencies
+pytube>=12.1.0
+moviepy>=1.0.3
+numpy>=1.22.0
+opencv-python>=4.5.5
+torch>=1.13.0
+pathlib
+tk>=0.1.0  # Tkinter for file dialog

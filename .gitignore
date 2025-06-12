@@ -1,0 +1,35 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VSCode settings (optional)
+.vscode/
+*.code-workspace
+
+# Output / exported files
+outputs/
+inputs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+*.env
+
+# Python virtual environments
+venv/
+env/
+
+# PyInstaller build files
+build/
+dist/
+*.spec
+
+# Qodana IDE config (optional)
+.qodana/
+
+# Logs
+*.log
