@@ -1,6 +1,7 @@
 from moviepy.editor import VideoFileClip
 import os
 from pathlib import Path
+import uuid
 
 from utils.logger import logger
 from utils.helpers import get_output_path
@@ -9,6 +10,22 @@ class VideoClipper:
     def __init__(self):
         """Initialize the video clipper"""
         pass
+    
+    def get_video_duration(self, video_path):
+        """Get the duration of a video file
+        
+        Args:
+            video_path: Path to the video file
+            
+        Returns:
+            float: Duration of the video in seconds
+        """
+        try:
+            with VideoFileClip(video_path) as video:
+                return video.duration
+        except Exception as e:
+            logger.error(f"Error getting video duration: {str(e)}")
+            return 0
     
     def clip(self, video_path, start_time, end_time=None, duration=None, output_path=None):
         """Extract a subclip from a video file
@@ -51,12 +68,15 @@ class VideoClipper:
                 # Ensure output directory exists
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 
+                # Generate a unique temp audio filename to prevent conflicts in parallel processing
+                temp_audio_file = f"temp-audio-{uuid.uuid4().hex[:8]}.m4a"
+                
                 # Write the subclip
                 subclip.write_videofile(
                     output_path,
                     codec="libx264",
                     audio_codec="aac",
-                    temp_audiofile="temp-audio.m4a",
+                    temp_audiofile=temp_audio_file,
                     remove_temp=True
                 )
                 
