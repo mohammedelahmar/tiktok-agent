@@ -6,3 +6,6 @@ opencv-python>=4.5.5
 torch>=1.13.0
 pathlib
 tk>=0.1.0  # Tkinter for file dialog
+librosa>=0.9.2
+opencv-python==4.5.5.64
+scipy==1.7.3
