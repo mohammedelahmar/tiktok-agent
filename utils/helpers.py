@@ -38,13 +38,27 @@ def sanitize_filename(filename):
         filename = filename.replace(char, '_')
     return filename
 
-def get_output_path(original_filename, suffix="tiktok"):
-    """Generate an output filename based on the original filename"""
+def get_output_path(original_filename, suffix="tiktok", clip_index=None):
+    """Generate an output filename based on the original filename
+    
+    Args:
+        original_filename: Original file path or name
+        suffix: Suffix to add to the filename
+        clip_index: Optional clip index for multi-clip extraction
+        
+    Returns:
+        str: Path to output file
+    """
     from pathlib import Path
     import config
     
     original_path = Path(original_filename)
     sanitized_name = sanitize_filename(original_path.stem)
+    
+    # Add clip index to suffix if provided
+    if clip_index is not None:
+        suffix = f"{clip_index}_{suffix}"
+        
     output_name = f"{sanitized_name}_{suffix}.{config.OUTPUT_FORMAT}"
     # Return as string instead of Path object
     return str(config.OUTPUTS_DIR / output_name)
