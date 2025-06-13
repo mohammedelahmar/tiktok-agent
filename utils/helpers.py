@@ -38,27 +38,54 @@ def sanitize_filename(filename):
         filename = filename.replace(char, '_')
     return filename
 
-def get_output_path(original_filename, suffix="tiktok", clip_index=None):
+def get_output_path(original_filename, suffix="tiktok", clip_index=None, 
+                   metadata=None, include_timestamp=True):
     """Generate an output filename based on the original filename
     
     Args:
         original_filename: Original file path or name
         suffix: Suffix to add to the filename
         clip_index: Optional clip index for multi-clip extraction
+        metadata: Optional metadata to include in filename (score, etc.)
+        include_timestamp: Whether to include timestamp in the filename
         
     Returns:
         str: Path to output file
     """
     from pathlib import Path
     import config
+    import time
     
     original_path = Path(original_filename)
     sanitized_name = sanitize_filename(original_path.stem)
     
-    # Add clip index to suffix if provided
+    # Prepare filename parts
+    parts = [sanitized_name]
+    
+    # Add clip index if provided
     if clip_index is not None:
-        suffix = f"{clip_index}_{suffix}"
+        parts.append(f"{clip_index}")
+    
+    # Add metadata if provided
+    if metadata:
+        if 'score' in metadata:
+            parts.append(f"score-{metadata['score']:.2f}")
+        if 'start_time' in metadata and 'end_time' in metadata:
+            start = metadata['start_time']
+            end = metadata['end_time']
+            parts.append(f"{int(start)}s-{int(end)}s")
+    
+    # Add timestamp if requested
+    if include_timestamp:
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        parts.append(timestamp)
         
-    output_name = f"{sanitized_name}_{suffix}.{config.OUTPUT_FORMAT}"
+    # Add suffix
+    if suffix:
+        parts.append(suffix)
+    
+    # Combine parts with underscores
+    output_name = "_".join(parts) + f".{config.OUTPUT_FORMAT}"
+    
     # Return as string instead of Path object
     return str(config.OUTPUTS_DIR / output_name)

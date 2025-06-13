@@ -95,3 +95,48 @@ class VideoClipper:
                     logger.debug(f"Cleaned up temporary audio file: {temp_audio_file}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up temporary file {temp_audio_file}: {str(e)}")
+    
+    # Add function to embed metadata
+
+    def embed_metadata(self, video_path, metadata):
+        """Embed metadata into a video file using ffmpeg
+        
+        Args:
+            video_path: Path to the video file
+            metadata: Dictionary of metadata to embed
+            
+        Returns:
+            str: Path to the output video with metadata
+        """
+        try:
+            import subprocess
+            import tempfile
+            from pathlib import Path
+            
+            # Create a temporary file
+            temp_output = tempfile.mktemp(suffix=Path(video_path).suffix)
+            
+            # Build ffmpeg command
+            command = ["ffmpeg", "-i", video_path]
+            
+            # Add metadata arguments
+            for key, value in metadata.items():
+                command.extend(["-metadata", f"{key}={value}"])
+                
+            # Add output file and overwrite flag
+            command.extend(["-codec", "copy", "-y", temp_output])
+            
+            # Run ffmpeg
+            subprocess.run(command, check=True, 
+                          stdout=subprocess.PIPE, 
+                          stderr=subprocess.PIPE)
+            
+            # Replace original file with the metadata-embedded version
+            os.replace(temp_output, video_path)
+            
+            logger.debug(f"Successfully embedded metadata in {video_path}")
+            return video_path
+        
+        except Exception as e:
+            logger.error(f"Error embedding metadata: {str(e)}")
+            return video_path  # Return original file if embedding fails

@@ -7,7 +7,11 @@ from utils.logger import logger
 class VideoFileLoader:
     def __init__(self):
         """Initialize the video file loader"""
-        pass
+        # Expanded list of supported extensions
+        self.supported_extensions = {
+            '.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv',  # Standard formats
+            '.webm', '.m4v', '.3gp', '.ogv', '.mpg', '.mpeg'  # Additional formats
+        }
     
     def load(self, file_path):
         """Load and validate a local video file
@@ -28,6 +32,11 @@ class VideoFileLoader:
             logger.error(f"Path is not a file: {file_path}")
             return None
             
+        # Check extension
+        if file_path.suffix.lower() not in self.supported_extensions:
+            logger.warning(f"File extension {file_path.suffix} not in supported list: {self.supported_extensions}")
+            logger.info("Attempting to validate as video anyway...")
+        
         # Check if it's a valid video file
         if not self._is_valid_video(str(file_path)):
             logger.error(f"Not a valid video file: {file_path}")

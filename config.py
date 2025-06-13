@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import torch  # Add import
 
 # Base paths
 PROJECT_ROOT = Path(__file__).parent
@@ -10,6 +11,12 @@ MODELS_DIR = PROJECT_ROOT / "models"
 # Create directories if they don't exist
 os.makedirs(INPUTS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+# GPU settings
+USE_GPU = os.environ.get("TIKTOK_USE_GPU", "1").lower() in ("1", "true", "yes", "y")
+GPU_DEVICE = os.environ.get("TIKTOK_GPU_DEVICE", "0")  # For multi-GPU systems
+# Check if CUDA is available
+CUDA_AVAILABLE = torch.cuda.is_available() if USE_GPU else False
 
 # Video settings - allow override from environment variables
 DEFAULT_CLIP_DURATION = float(os.environ.get("TIKTOK_DEFAULT_CLIP_DURATION", 15))  # seconds
@@ -24,8 +31,14 @@ OUTPUT_FORMAT = os.environ.get("TIKTOK_OUTPUT_FORMAT", "mp4")
 USE_ENGAGEMENT_MODEL = os.environ.get("TIKTOK_USE_ENGAGEMENT_MODEL", "1").lower() in ("1", "true", "yes", "y")
 MODEL_WEIGHTS_PATH = MODELS_DIR / "engagement_weights.pth"
 
+# Face detection settings
+FACE_DETECTOR = os.environ.get("TIKTOK_FACE_DETECTOR", "mediapipe")  # opencv, mediapipe, or none
+
 # YouTube download settings
 YT_DOWNLOAD_RESOLUTION = os.environ.get("TIKTOK_YT_DOWNLOAD_RESOLUTION", "720p")
+
+# Parallelism settings
+MAX_WORKERS = int(os.environ.get("TIKTOK_MAX_WORKERS", os.cpu_count() or 4))
 
 # Face detection model URLs
 FACE_DETECTION_PROTOTXT_URL = os.environ.get(

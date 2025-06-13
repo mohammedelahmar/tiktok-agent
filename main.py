@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
+import torch
 
 import config
 from utils.logger import logger, set_log_level
@@ -38,6 +39,15 @@ def main():
     # Output options
     parser.add_argument("--output", "-o", help="Output file path (for single clip) or prefix (for multiple clips)")
     
+    # Performance options
+    parser.add_argument("--workers", "-w", type=int, default=config.MAX_WORKERS,
+                       help=f"Number of parallel workers for processing (default: {config.MAX_WORKERS})")
+    parser.add_argument("--face-detector", choices=["opencv", "mediapipe", "none"], 
+                       default=config.FACE_DETECTOR,
+                       help=f"Face detection method (default: {config.FACE_DETECTOR})")
+    parser.add_argument("--use-gpu", action="store_true", default=config.CUDA_AVAILABLE,
+                       help="Use GPU acceleration if available")
+    
     # Logging options
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                         default=os.environ.get("TIKTOK_AGENT_LOG_LEVEL", "INFO"),
@@ -45,6 +55,11 @@ def main():
     
     # Parse arguments
     args = parser.parse_args()
+    
+    # Update config based on arguments
+    config.MAX_WORKERS = args.workers
+    config.FACE_DETECTOR = args.face_detector
+    config.USE_GPU = args.use_gpu and torch.cuda.is_available()
     
     # Set logging level
     log_level = getattr(logging, args.log_level, logging.INFO)
@@ -171,7 +186,7 @@ def interactive_mode(args):
                 parent=root,
                 title="Select Video File",
                 filetypes=[
-                    ("Video files", "*.mp4 *.avi *.mov *.mkv *.flv *.wmv"),
+                    ("Video files", "*.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm"),
                     ("All files", "*.*")
                 ]
             )
@@ -238,6 +253,82 @@ def interactive_mode(args):
                     args.min_gap = 0
             except ValueError:
                 print("Invalid gap value. Using default: 1.0")
+    
+    # Face detection method
+    print("\nSelect face detection method:")
+    print("1. MediaPipe (default, more accurate but may be slower)")
+    print("2. OpenCV (faster but less accurate)")
+    print("3. None (disable face detection)")
+    
+    face_choice = input("Enter your choice (1/2/3) [default: 1]: ") or "1"  # Default to "1" if empty
+    face_map = {"1": "mediapipe", "2": "opencv", "3": "none"}
+    
+    if face_choice not in face_map:
+        print(f"Invalid choice: {face_choice}. Using default: MediaPipe")
+        face_choice = "1"
+        
+    args.face_detector = face_map[face_choice]
+    config.FACE_DETECTOR = args.face_detector
+    print(f"Using face detection method: {args.face_detector}")
+    
+    # GPU acceleration
+    if torch.cuda.is_available():
+        gpu_choice = input("\nUse GPU acceleration if available? (y/n) [default: y]: ").lower() or "y"
+        args.use_gpu = gpu_choice not in ('n', 'no')
+        config.USE_GPU = args.use_gpu
+    else:
+        print("\nGPU acceleration not available on this system.")
+        args.use_gpu = False
+        config.USE_GPU = False
+    
+    # Workers for parallel processing
+    cpu_count = os.cpu_count() or 4
+    workers_str = input(f"\nNumber of parallel workers (1-{cpu_count}) [default: {config.MAX_WORKERS}]: ") or str(config.MAX_WORKERS)
+    try:
+        args.workers = int(workers_str)
+        if args.workers < 1:
+            args.workers = 1
+            print("Workers must be at least 1. Setting to 1.")
+        elif args.workers > cpu_count:
+            args.workers = cpu_count
+            print(f"Workers limited to available CPU count: {args.workers}")
+    except ValueError:
+        print(f"Invalid worker count. Using default: {config.MAX_WORKERS}")
+        args.workers = config.MAX_WORKERS
+        
+    config.MAX_WORKERS = args.workers
+    print(f"Using {args.workers} parallel workers")
+    
+    # Advanced logging options
+    show_advanced = input("\nShow advanced logging options? (y/n) [default: n]: ").lower() or "n"
+    if show_advanced in ('y', 'yes'):
+        print("\nSelect logging level:")
+        print("1. DEBUG (very verbose)")
+        print("2. INFO (default)")
+        print("3. WARNING (fewer messages)")
+        print("4. ERROR (only errors)")
+        print("5. CRITICAL (only critical errors)")
+        
+        log_choice = input("Enter your choice (1-5) [default: 2]: ") or "2"
+            
+        log_map = {"1": "DEBUG", "2": "INFO", "3": "WARNING", "4": "ERROR", "5": "CRITICAL"}
+        if log_choice not in log_map:
+            print(f"Invalid choice: {log_choice}. Using default: INFO")
+            log_choice = "2"
+            
+        args.log_level = log_map[log_choice]
+        log_level = getattr(logging, args.log_level)
+        set_log_level(log_level)
+        print(f"Logging level set to: {args.log_level}")
+    
+    print("\n=== Configuration Summary ===")
+    print(f"Face detection: {args.face_detector}")
+    print(f"GPU acceleration: {'Enabled' if args.use_gpu else 'Disabled'}")
+    print(f"Parallel workers: {args.workers}")
+    print(f"Clip count: {args.num_clips}")
+    print(f"Clip duration: {args.duration}s")
+    print(f"Format method: {args.format}")
+    print("==========================\n")
     
     return args
 

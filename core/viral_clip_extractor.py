@@ -4,6 +4,7 @@ from pathlib import Path
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor  # Change to ThreadPoolExecutor
 import os
+from tqdm import tqdm
 
 import config
 from utils.logger import logger
@@ -101,7 +102,7 @@ class ViralClipExtractor:
     
     def extract_multiple_clips(self, video_path, num_clips=3, clip_duration=None, 
                                min_gap=1.0, output_prefix=None, segment_duration=1.0,
-                               parallel_processing=True):
+                               parallel_processing=True, embed_metadata=True):
         """Extract multiple viral clips from a video
         
         Args:
@@ -112,6 +113,7 @@ class ViralClipExtractor:
             output_prefix: Prefix for output paths (optional)
             segment_duration: Duration of segments to score (default 1.0)
             parallel_processing: Whether to process clips in parallel (default True)
+            embed_metadata: Whether to embed metadata in the clip files (default True)
             
         Returns:
             list: List of tuples (clip_path, start_time, end_time, score)
@@ -186,19 +188,43 @@ class ViralClipExtractor:
         # Now process all the clips, possibly in parallel
         result_clips = []
         
+        # Update the processing logic to include metadata
         if parallel_processing and len(best_segments) > 1:
-            logger.debug(f"Processing {len(best_segments)} clips in parallel")
+            logger.debug(f"Processing {len(best_segments)} clips in parallel with {config.MAX_WORKERS} workers")
             
             def process_clip(args):
                 idx, start_time, end_time, score = args
-                output_path = self._get_output_path(video_path, idx + 1, output_prefix)
+                
+                # Create metadata dictionary
+                metadata = {
+                    'score': score,
+                    'start_time': start_time,
+                    'end_time': end_time
+                }
+                
+                # Generate output path with metadata in name
+                output_path = self._get_output_path(video_path, idx + 1, output_prefix, 
+                                                  metadata=metadata if embed_metadata else None)
+                
+                # Clip the video
                 clip_path = self.clipper.clip(
                     video_path, start_time=start_time, end_time=end_time, output_path=output_path
                 )
+                
+                # Embed metadata if requested
+                if embed_metadata and clip_path and Path(clip_path).exists():
+                    metadata_dict = {
+                        'tiktok_score': f"{score:.4f}",
+                        'tiktok_start_time': f"{start_time:.2f}",
+                        'tiktok_end_time': f"{end_time:.2f}",
+                        'tiktok_clip_index': str(idx + 1)
+                    }
+                    self.clipper.embed_metadata(clip_path, metadata_dict)
+                    
                 return (clip_path, start_time, end_time, score) if clip_path and Path(clip_path).exists() else None
             
             # Use ThreadPoolExecutor instead of ProcessPoolExecutor
-            with ThreadPoolExecutor(max_workers=min(os.cpu_count(), len(best_segments))) as executor:
+            with ThreadPoolExecutor(max_workers=min(config.MAX_WORKERS, len(best_segments))) as executor:
                 futures = [executor.submit(process_clip, segment) for segment in best_segments]
                 for future in concurrent.futures.as_completed(futures):
                     result = future.result()
@@ -207,7 +233,15 @@ class ViralClipExtractor:
         else:
             # Process sequentially
             for idx, start_time, end_time, score in best_segments:
-                output_path = self._get_output_path(video_path, idx + 1, output_prefix)
+                # Create metadata dictionary
+                metadata = {
+                    'score': score,
+                    'start_time': start_time,
+                    'end_time': end_time
+                }
+                
+                output_path = self._get_output_path(video_path, idx + 1, output_prefix, 
+                                                  metadata=metadata if embed_metadata else None)
                 
                 # Extract the clip
                 clip_path = self.clipper.clip(
@@ -217,6 +251,16 @@ class ViralClipExtractor:
                     output_path=output_path
                 )
                 
+                # Embed metadata if requested
+                if embed_metadata and clip_path and Path(clip_path).exists():
+                    metadata_dict = {
+                        'tiktok_score': f"{score:.4f}",
+                        'tiktok_start_time': f"{start_time:.2f}",
+                        'tiktok_end_time': f"{end_time:.2f}",
+                        'tiktok_clip_index': str(idx + 1)
+                    }
+                    self.clipper.embed_metadata(clip_path, metadata_dict)
+                
                 if clip_path and Path(clip_path).exists():
                     result_clips.append((clip_path, start_time, end_time, score))
                 else:
@@ -225,23 +269,34 @@ class ViralClipExtractor:
         logger.info(f"Extracted {len(result_clips)} out of {len(best_segments)} viral clips")
         return result_clips
     
-    def _get_output_path(self, video_path, clip_index, output_prefix=None):
+    # Update _get_output_path to use the improved naming
+
+    def _get_output_path(self, video_path, clip_index, output_prefix=None, metadata=None):
         """Get output path for a clip
         
         Args:
             video_path: Original video path
             clip_index: Clip index number
             output_prefix: Optional output prefix
+            metadata: Optional metadata to include in filename
             
         Returns:
             str: Output path for the clip
         """
         if output_prefix:
             output_path = Path(output_prefix)
-            return str(output_path.parent / f"{output_path.stem}_{clip_index}{output_path.suffix}")
+            if metadata:
+                # Include score and timestamps in filename
+                score = metadata.get('score', 0)
+                start_time = metadata.get('start_time', 0)
+                end_time = metadata.get('end_time', 0)
+                return str(output_path.parent / f"{output_path.stem}_{clip_index}_score{score:.2f}_{int(start_time)}s-{int(end_time)}s{output_path.suffix}")
+            else:
+                return str(output_path.parent / f"{output_path.stem}_{clip_index}{output_path.suffix}")
         else:
-            # Use clip index for automatic naming
-            return get_output_path(video_path, suffix="clip", clip_index=clip_index)
+            # Use improved helper function
+            return get_output_path(video_path, suffix="clip", clip_index=clip_index, 
+                                 metadata=metadata, include_timestamp=True)
     
     def _find_best_clip_window(self, segment_scores, clip_duration):
         """Find the best window of segments for the clip

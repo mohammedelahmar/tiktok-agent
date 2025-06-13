@@ -7,26 +7,56 @@ import os
 import tempfile
 import librosa
 import scipy.signal
+from tqdm import tqdm
+import mediapipe as mp
 
 import config
 from utils.logger import logger
 
 class EngagementModel:
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, face_detector=None):
         """Initialize the engagement model
         
         Args:
             model_path: Path to model weights (defaults to config.MODEL_WEIGHTS_PATH)
+            face_detector: Face detection method (defaults to config.FACE_DETECTOR)
         """
         self.model_path = model_path or config.MODEL_WEIGHTS_PATH
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.face_detector_type = face_detector or config.FACE_DETECTOR
+        
+        # Use CUDA if available and enabled
+        if config.CUDA_AVAILABLE:
+            self.device = torch.device(f"cuda:{config.GPU_DEVICE}")
+            logger.info(f"CUDA enabled: using GPU device {config.GPU_DEVICE}")
+        else:
+            self.device = torch.device("cpu")
+            logger.info("Using CPU for model inference")
+            
         self.model = None
         self.initialized = False
         self._load_face_detector()
         
     def _load_face_detector(self):
-        """Load face detection model using OpenCV DNN"""
+        """Load face detection model using OpenCV DNN or MediaPipe"""
         try:
+            if self.face_detector_type == "none":
+                logger.info("Face detection disabled by configuration")
+                self.face_detector = None
+                self.mp_face_detection = None
+                return
+                
+            if self.face_detector_type == "mediapipe":
+                # Use MediaPipe face detection
+                mp_face_detection = mp.solutions.face_detection
+                self.face_detector = None  # Not using OpenCV
+                self.mp_face_detection = mp_face_detection.FaceDetection(
+                    model_selection=1,  # 0 for short-range, 1 for full-range detection
+                    min_detection_confidence=0.5
+                )
+                logger.info("MediaPipe face detection model loaded successfully")
+                return
+                
+            # Default: OpenCV DNN-based detector
             # Path to the pre-trained models directory
             models_dir = Path(config.PROJECT_ROOT) / "models" / "face_detection"
             os.makedirs(models_dir, exist_ok=True)
@@ -44,10 +74,12 @@ class EngagementModel:
                     if not success:
                         logger.warning("Failed to download face detection model. Face detection will be disabled.")
                         self.face_detector = None
+                        self.mp_face_detection = None
                         return
                 except Exception as e:
                     logger.warning(f"Error downloading face detection model: {str(e)}. Face detection will be disabled.")
                     self.face_detector = None
+                    self.mp_face_detection = None
                     return
         
             # Load the DNN model
@@ -55,11 +87,13 @@ class EngagementModel:
                 str(prototxt_path),
                 str(caffemodel_path)
             )
-            logger.info("Face detection model loaded successfully")
+            self.mp_face_detection = None
+            logger.info("OpenCV DNN face detection model loaded successfully")
             
         except Exception as e:
             logger.error(f"Error loading face detector: {str(e)}")
             self.face_detector = None
+            self.mp_face_detection = None
 
     def initialize(self):
         """Load and initialize the model"""
@@ -162,20 +196,37 @@ class EngagementModel:
         return torch.FloatTensor(frames_array).to(self.device)
     
     def _detect_faces(self, frame, confidence_threshold=0.5):
-        """Detect faces in a frame using OpenCV DNN
+        """Detect faces in a frame using the configured face detector
         
         Args:
-            frame: Input frame (BGR format)
+            frame: Input frame (BGR format for OpenCV, RGB for MediaPipe)
             confidence_threshold: Minimum confidence for face detection
             
         Returns:
             int: Number of faces detected
         """
-        if self.face_detector is None:
+        # If no detector is available
+        if self.face_detector is None and self.mp_face_detection is None:
             return 0
             
         try:
-            # Get frame dimensions
+            # MediaPipe detection
+            if self.mp_face_detection is not None:
+                # MediaPipe requires RGB
+                if frame.shape[2] == 3 and frame[0,0,0] > frame[0,0,2]:  # BGR check
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                else:
+                    frame_rgb = frame
+                    
+                results = self.mp_face_detection.process(frame_rgb)
+                if results.detections:
+                    return len([
+                        detection for detection in results.detections 
+                        if detection.score[0] > confidence_threshold
+                    ])
+                return 0
+                
+            # OpenCV DNN detection (original implementation)
             h, w = frame.shape[:2]
             
             # Create a 300x300 blob from the frame
@@ -337,7 +388,9 @@ class EngagementModel:
                 sampling_rate = 0.5  # seconds
                 
                 logger.info("Pre-sampling frames for face detection...")
-                for t in np.arange(0, duration, sampling_rate):
+                # Add progress bar for face detection
+                for t in tqdm(np.arange(0, duration, sampling_rate), 
+                              desc="Face detection", unit="frame"):
                     try:
                         frame = clip.get_frame(t)
                         # Convert RGB to BGR for OpenCV
@@ -348,7 +401,9 @@ class EngagementModel:
                         continue
                 
                 logger.info(f"Analyzing segments with enhanced features...")
-                for start_time in np.arange(0, duration - segment_duration, segment_duration):
+                # Add progress bar for segment analysis
+                segment_times = list(np.arange(0, duration - segment_duration, segment_duration))
+                for start_time in tqdm(segment_times, desc="Analyzing segments", unit="segment"):
                     end_time = start_time + segment_duration
                     segment = clip.subclip(start_time, end_time)
                     
