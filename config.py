@@ -27,6 +27,18 @@ OUTPUT_RESOLUTION = (
 OUTPUT_QUALITY = os.environ.get("TIKTOK_OUTPUT_QUALITY", "high")  # high, medium, low
 OUTPUT_FORMAT = os.environ.get("TIKTOK_OUTPUT_FORMAT", "mp4")
 
+# Watermark settings
+WATERMARK_ENABLED = os.environ.get("TIKTOK_WATERMARK_ENABLED", "0").lower() in ("1", "true", "yes", "y")
+WATERMARK_TYPE = os.environ.get("TIKTOK_WATERMARK_TYPE", "text")  # text or image
+WATERMARK_TEXT = os.environ.get("TIKTOK_WATERMARK_TEXT", "@YourUsername")
+WATERMARK_IMAGE = os.environ.get("TIKTOK_WATERMARK_IMAGE", "")  # Path to watermark image
+WATERMARK_POSITION = os.environ.get("TIKTOK_WATERMARK_POSITION", "bottom-right")  # top-left, top-right, bottom-left, bottom-right, center
+WATERMARK_OPACITY = float(os.environ.get("TIKTOK_WATERMARK_OPACITY", "0.7"))  # 0.0 to 1.0
+WATERMARK_PADDING = int(os.environ.get("TIKTOK_WATERMARK_PADDING", "20"))  # Padding from edges in pixels
+WATERMARK_TEXT_SIZE = int(os.environ.get("TIKTOK_WATERMARK_TEXT_SIZE", "40"))
+WATERMARK_TEXT_COLOR = os.environ.get("TIKTOK_WATERMARK_TEXT_COLOR", "white")
+WATERMARK_FONT = os.environ.get("TIKTOK_WATERMARK_FONT", "")  # Path to font file or empty for default
+
 # Model settings
 USE_ENGAGEMENT_MODEL = os.environ.get("TIKTOK_USE_ENGAGEMENT_MODEL", "1").lower() in ("1", "true", "yes", "y")
 MODEL_WEIGHTS_PATH = MODELS_DIR / "engagement_weights.pth"

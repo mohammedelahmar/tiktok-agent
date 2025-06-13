@@ -36,6 +36,27 @@ def main():
     parser.add_argument("--format", "-fmt", choices=["crop", "blur", "bars"], default="crop",
                         help="Method for formatting to 9:16 ratio (default: crop)")
     
+    # Watermark options
+    watermark_group = parser.add_argument_group('Watermark Options')
+    watermark_group.add_argument("--watermark", "-wm", action="store_true", default=config.WATERMARK_ENABLED,
+                        help="Add watermark to videos")
+    watermark_group.add_argument("--watermark-type", choices=["text", "image"], default=config.WATERMARK_TYPE,
+                        help="Type of watermark (default: text)")
+    watermark_group.add_argument("--watermark-text", default=config.WATERMARK_TEXT,
+                        help="Text for watermark (default: @YourUsername)")
+    watermark_group.add_argument("--watermark-image", default=config.WATERMARK_IMAGE,
+                        help="Path to image for watermark")
+    watermark_group.add_argument("--watermark-position", choices=["top-left", "top-right", "bottom-left", "bottom-right", "center"],
+                        default=config.WATERMARK_POSITION, help="Position of watermark (default: bottom-right)")
+    watermark_group.add_argument("--watermark-opacity", type=float, default=config.WATERMARK_OPACITY,
+                        help="Opacity of watermark, 0.0-1.0 (default: 0.7)")
+    watermark_group.add_argument("--watermark-padding", type=int, default=config.WATERMARK_PADDING,
+                        help="Padding from edges in pixels (default: 20)")
+    watermark_group.add_argument("--watermark-text-size", type=int, default=config.WATERMARK_TEXT_SIZE,
+                        help="Font size for text watermark (default: 40)")
+    watermark_group.add_argument("--watermark-text-color", default=config.WATERMARK_TEXT_COLOR,
+                        help="Color for text watermark (default: white)")
+    
     # Output options
     parser.add_argument("--output", "-o", help="Output file path (for single clip) or prefix (for multiple clips)")
     
@@ -79,6 +100,21 @@ def main():
         # Step 2: Extract clips
         clip_extractor = ViralClipExtractor()
         
+        # Prepare watermark options if enabled
+        watermark_options = None
+        if args.watermark:
+            watermark_options = {
+                'enabled': True,
+                'type': args.watermark_type,
+                'text': args.watermark_text,
+                'image': args.watermark_image,
+                'position': args.watermark_position,
+                'opacity': args.watermark_opacity,
+                'padding': args.watermark_padding,
+                'text_size': args.watermark_text_size,
+                'text_color': args.watermark_text_color
+            }
+        
         if args.num_clips <= 1:
             # Extract a single clip
             clip_path, start_time, end_time, score = clip_extractor.extract_best_clip(
@@ -98,7 +134,8 @@ def main():
             formatted_path = formatter.format_to_9_16(
                 clip_path,
                 method=args.format,
-                output_path=args.output
+                output_path=args.output,
+                watermark_options=watermark_options
             )
             
             if not formatted_path:
@@ -137,7 +174,8 @@ def main():
                 formatted_path = formatter.format_to_9_16(
                     clip_path,
                     method=args.format,
-                    output_path=fmt_output
+                    output_path=fmt_output,
+                    watermark_options=watermark_options
                 )
                 
                 if formatted_path:
@@ -242,6 +280,85 @@ def interactive_mode(args):
     format_map = {"1": "crop", "2": "blur", "3": "bars"}
     args.format = format_map[format_choice]
     
+    # Watermark options
+    watermark_choice = input("\nAdd watermark to video? (y/n) [default: n]: ").lower() or "n"
+    args.watermark = watermark_choice in ('y', 'yes')
+    
+    if args.watermark:
+        print("\nSelect watermark type:")
+        print("1. Text")
+        print("2. Image")
+        
+        wm_type_choice = input("Enter your choice (1/2) [default: 1]: ") or "1"
+        args.watermark_type = "text" if wm_type_choice == "1" else "image"
+        
+        if args.watermark_type == "text":
+            args.watermark_text = input(f"Enter watermark text [default: {config.WATERMARK_TEXT}]: ") or config.WATERMARK_TEXT
+            args.watermark_text_size = int(input(f"Enter text size [default: {config.WATERMARK_TEXT_SIZE}]: ") or config.WATERMARK_TEXT_SIZE)
+            args.watermark_text_color = input(f"Enter text color [default: {config.WATERMARK_TEXT_COLOR}]: ") or config.WATERMARK_TEXT_COLOR
+        else:
+            # For image watermark
+            try:
+                root = tk.Tk()
+                root.attributes("-topmost", True)
+                root.withdraw()
+                root.focus_force()
+                
+                image_path = filedialog.askopenfilename(
+                    parent=root,
+                    title="Select Watermark Image",
+                    filetypes=[
+                        ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                        ("All files", "*.*")
+                    ]
+                )
+                
+                root.destroy()
+                
+                if image_path:
+                    args.watermark_image = image_path
+                    print(f"Selected watermark image: {image_path}")
+                else:
+                    print("No image selected. Watermark will be disabled.")
+                    args.watermark = False
+                    
+            except Exception as e:
+                print(f"Error opening file dialog: {str(e)}")
+                image_path = input("Enter path to watermark image: ")
+                if os.path.exists(image_path):
+                    args.watermark_image = image_path
+                else:
+                    print("Invalid image path. Watermark will be disabled.")
+                    args.watermark = False
+        
+        if args.watermark:
+            # Position
+            print("\nSelect watermark position:")
+            print("1. Top-left")
+            print("2. Top-right")
+            print("3. Bottom-left")
+            print("4. Bottom-right (default)")
+            print("5. Center")
+            
+            pos_choice = input("Enter your choice (1-5) [default: 4]: ") or "4"
+            pos_map = {
+                "1": "top-left",
+                "2": "top-right",
+                "3": "bottom-left", 
+                "4": "bottom-right",
+                "5": "center"
+            }
+            args.watermark_position = pos_map.get(pos_choice, "bottom-right")
+            
+            # Opacity
+            opacity_str = input(f"Enter watermark opacity (0.0-1.0) [default: {config.WATERMARK_OPACITY}]: ")
+            if opacity_str.strip():
+                try:
+                    opacity = float(opacity_str)
+                    args.watermark_opacity = max(0.0, min(1.0, opacity))
+                except ValueError:
+                    print(f"Invalid opacity. Using default: {config.WATERMARK_OPACITY}")
+    
     if args.num_clips > 1:
         # Min gap option for multiple clips
         min_gap_str = input("Enter minimum gap between clips in seconds (default: 1.0): ")
@@ -328,6 +445,14 @@ def interactive_mode(args):
     print(f"Clip count: {args.num_clips}")
     print(f"Clip duration: {args.duration}s")
     print(f"Format method: {args.format}")
+    print(f"Watermark: {'Enabled' if args.watermark else 'Disabled'}")
+    if args.watermark:
+        print(f"  Type: {args.watermark_type}")
+        if args.watermark_type == "text":
+            print(f"  Text: {args.watermark_text}")
+        else:
+            print(f"  Image: {args.watermark_image}")
+        print(f"  Position: {args.watermark_position}")
     print("==========================\n")
     
     return args
