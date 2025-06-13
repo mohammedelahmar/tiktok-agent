@@ -1,12 +1,22 @@
 import logging
 import sys
+import os
 from pathlib import Path
 
-def setup_logger(name="tiktok_agent", log_file=None, level=logging.INFO):
+def setup_logger(name="tiktok_agent", log_file=None, level=None):
     """Set up and return a logger instance"""
+    
+    # Get log level from environment variable, with fallback to INFO
+    if level is None:
+        level_name = os.environ.get("TIKTOK_AGENT_LOG_LEVEL", "INFO").upper()
+        level = getattr(logging, level_name, logging.INFO)
     
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    
+    # Clear any existing handlers to prevent duplicates when reconfiguring
+    if logger.hasHandlers():
+        logger.handlers.clear()
     
     # Create formatter
     formatter = logging.Formatter(
@@ -32,3 +42,12 @@ def setup_logger(name="tiktok_agent", log_file=None, level=logging.INFO):
 
 # Create default logger instance
 logger = setup_logger()
+
+# Add a function to change log level dynamically
+def set_log_level(level):
+    """Set the log level for the logger
+    
+    Args:
+        level: Logging level (e.g., logging.DEBUG, logging.INFO)
+    """
+    logger.setLevel(level)

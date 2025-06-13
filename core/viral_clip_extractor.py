@@ -2,6 +2,8 @@ import numpy as np
 import time
 from pathlib import Path
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor  # Change to ThreadPoolExecutor
+import os
 
 import config
 from utils.logger import logger
@@ -195,7 +197,8 @@ class ViralClipExtractor:
                 )
                 return (clip_path, start_time, end_time, score) if clip_path and Path(clip_path).exists() else None
             
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Use ThreadPoolExecutor instead of ProcessPoolExecutor
+            with ThreadPoolExecutor(max_workers=min(os.cpu_count(), len(best_segments))) as executor:
                 futures = [executor.submit(process_clip, segment) for segment in best_segments]
                 for future in concurrent.futures.as_completed(futures):
                     result = future.result()

@@ -1,12 +1,13 @@
 import argparse
 import sys
 import os
+import logging
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
 
 import config
-from utils.logger import logger
+from utils.logger import logger, set_log_level
 from core.downloader import YouTubeDownloader
 from core.file_loader import VideoFileLoader
 from core.viral_clip_extractor import ViralClipExtractor
@@ -37,8 +38,17 @@ def main():
     # Output options
     parser.add_argument("--output", "-o", help="Output file path (for single clip) or prefix (for multiple clips)")
     
+    # Logging options
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                        default=os.environ.get("TIKTOK_AGENT_LOG_LEVEL", "INFO"),
+                        help="Set logging level (default: INFO)")
+    
     # Parse arguments
     args = parser.parse_args()
+    
+    # Set logging level
+    log_level = getattr(logging, args.log_level, logging.INFO)
+    set_log_level(log_level)
     
     # If no input method specified, enter interactive mode
     if not args.youtube and not args.file:

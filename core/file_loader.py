@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import cv2
 from moviepy.editor import VideoFileClip
 
 from utils.logger import logger
@@ -29,7 +28,7 @@ class VideoFileLoader:
             logger.error(f"Path is not a file: {file_path}")
             return None
             
-        # Check if it's a video file
+        # Check if it's a valid video file
         if not self._is_valid_video(str(file_path)):
             logger.error(f"Not a valid video file: {file_path}")
             return None
@@ -38,7 +37,7 @@ class VideoFileLoader:
         return str(file_path)
     
     def _is_valid_video(self, file_path):
-        """Check if a file is a valid video
+        """Check if a file is a valid video using only MoviePy
         
         Args:
             file_path: Path to the file
@@ -47,25 +46,16 @@ class VideoFileLoader:
             bool: True if valid video, False otherwise
         """
         try:
-            # Try to open with OpenCV
-            cap = cv2.VideoCapture(file_path)
-            if not cap.isOpened():
-                return False
-                
-            # Read one frame
-            ret, frame = cap.read()
-            cap.release()
-            
-            if not ret or frame is None:
-                return False
-                
             # Try to get video info with MoviePy
             with VideoFileClip(file_path) as clip:
-                duration = clip.duration
-                if duration <= 0:
+                # Check basic video properties
+                if clip.duration <= 0:
                     return False
-                    
-            return True
+                
+                # Try to read a frame to ensure the video is readable
+                clip.get_frame(0)
+                
+                return True
             
         except Exception as e:
             logger.error(f"Error validating video file: {str(e)}")

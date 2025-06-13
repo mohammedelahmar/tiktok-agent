@@ -40,6 +40,7 @@ class VideoClipper:
         Returns:
             str: Path to the clipped video file
         """
+        temp_audio_file = None
         try:
             if end_time is None and duration is None:
                 raise ValueError("Either end_time or duration must be provided")
@@ -86,3 +87,11 @@ class VideoClipper:
         except Exception as e:
             logger.error(f"Error extracting clip: {str(e)}")
             return None
+        finally:
+            # Clean up temp file if it exists and wasn't removed
+            if temp_audio_file and os.path.exists(temp_audio_file):
+                try:
+                    os.remove(temp_audio_file)
+                    logger.debug(f"Cleaned up temporary audio file: {temp_audio_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary file {temp_audio_file}: {str(e)}")
