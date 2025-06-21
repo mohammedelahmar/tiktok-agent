@@ -28,6 +28,7 @@ class CloudStorage:
             from google_auth_oauthlib.flow import InstalledAppFlow
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
+            from google.auth.transport.requests import Request  # Import Request object
             
             # Google Drive scopes
             SCOPES = ['https://www.googleapis.com/auth/drive.file']  # Only upload access
@@ -51,7 +52,7 @@ class CloudStorage:
                 
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
-                    creds.refresh()
+                    creds.refresh(Request())  # Pass a Request object here
                 else:
                     flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
                     creds = flow.run_local_server(port=0)
