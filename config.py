@@ -61,3 +61,14 @@ FACE_DETECTION_MODEL_URL = os.environ.get(
     "TIKTOK_FACE_DETECTION_MODEL_URL", 
     "https://raw.githubusercontent.com/opencv/opencv_3rdparty/dnn_samples_face_detector_20180205_fp16/res10_300x300_ssd_iter_140000_fp16.caffemodel"
 )
+
+# Cloud Storage settings
+CLOUD_STORAGE_ENABLED = os.environ.get("TIKTOK_CLOUD_STORAGE_ENABLED", "0").lower() in ("1", "true", "yes", "y")
+CLOUD_STORAGE_PROVIDER = os.environ.get("TIKTOK_CLOUD_STORAGE_PROVIDER", "gdrive")  # gdrive, s3
+GDRIVE_CREDENTIALS_PATH = os.environ.get("TIKTOK_GDRIVE_CREDENTIALS_PATH", str(PROJECT_ROOT / "credentials.json"))
+GDRIVE_TOKEN_PATH = os.environ.get("TIKTOK_GDRIVE_TOKEN_PATH", str(PROJECT_ROOT / "token.json"))
+GDRIVE_FOLDER_ID = os.environ.get("TIKTOK_GDRIVE_FOLDER_ID", "19L2dxG4TpZMZKWgnlePvtRqIk4PlDwdI")  # Default Drive folder ID
+S3_BUCKET_NAME = os.environ.get("TIKTOK_S3_BUCKET_NAME", "")
+S3_REGION = os.environ.get("TIKTOK_S3_REGION", "")  # AWS region, e.g., us-west-1
+S3_ACCESS_KEY = os.environ.get("TIKTOK_S3_ACCESS_KEY", "")
+S3_SECRET_KEY = os.environ.get("TIKTOK_S3_SECRET_KEY", "")

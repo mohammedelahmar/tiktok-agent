@@ -35,3 +35,8 @@ dist/
 *.log
 
 Features.txt
+
+credentials.json
+token.json
+
+tests/

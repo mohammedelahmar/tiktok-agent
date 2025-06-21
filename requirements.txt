@@ -11,3 +11,10 @@ opencv-python==4.5.5.64
 scipy>=1.11.0
 tqdm>=4.64.0  # Progress bars
 mediapipe>=0.9.0  # Face detection
+pydrive2==1.15.0  # Google Drive integration using PyDrive
+oauth2client>=4.1.3
+PyYAML>=6.0
+boto3>=1.26.0
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.1.0

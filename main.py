@@ -13,6 +13,7 @@ from core.downloader import YouTubeDownloader
 from core.file_loader import VideoFileLoader
 from core.viral_clip_extractor import ViralClipExtractor
 from core.formatter import VideoFormatter
+from utils.cloud_storage import CloudStorage
 
 
 def main():
@@ -74,6 +75,33 @@ def main():
                         default=os.environ.get("TIKTOK_AGENT_LOG_LEVEL", "INFO"),
                         help="Set logging level (default: INFO)")
     
+    # Cloud storage options
+    cloud_storage_group = parser.add_argument_group('Cloud Storage Options')
+    cloud_storage_group.add_argument("--upload-cloud", action="store_true", default=config.CLOUD_STORAGE_ENABLED,
+                         help="Upload output clips to cloud storage")
+    cloud_storage_group.add_argument("--cloud-provider", choices=["gdrive", "s3"], default=config.CLOUD_STORAGE_PROVIDER,
+                         help="Cloud storage provider (default: gdrive)")
+
+    # Google Drive options
+    gdrive_group = parser.add_argument_group('Google Drive Options')
+    gdrive_group.add_argument("--gdrive-credentials", default=config.GDRIVE_CREDENTIALS_PATH,
+                         help="Path to Google Drive credentials.json file")
+    gdrive_group.add_argument("--gdrive-token", default=config.GDRIVE_TOKEN_PATH,
+                         help="Path to Google Drive token.json file (will be created if it doesn't exist)")
+    gdrive_group.add_argument("--gdrive-folder", default=config.GDRIVE_FOLDER_ID,
+                         help="Google Drive folder ID to upload to")
+
+    # AWS S3 options
+    s3_group = parser.add_argument_group('AWS S3 Options')
+    s3_group.add_argument("--s3-bucket", default=config.S3_BUCKET_NAME,
+                         help="AWS S3 bucket name")
+    s3_group.add_argument("--s3-region", default=config.S3_REGION,
+                         help="AWS S3 region")
+    s3_group.add_argument("--s3-access-key", default=config.S3_ACCESS_KEY,
+                         help="AWS S3 access key ID")
+    s3_group.add_argument("--s3-secret-key", default=config.S3_SECRET_KEY,
+                         help="AWS S3 secret access key")
+                         
     # Parse arguments
     args = parser.parse_args()
     
@@ -183,6 +211,46 @@ def main():
                     logger.info(f"Successfully created TikTok video {i+1}: {formatted_path}")
             
             logger.info(f"Successfully formatted {len(formatted_paths)} out of {len(clips)} clips")
+        
+        # Upload to cloud storage if enabled
+        if args.upload_cloud:
+            # Function to handle cloud uploads
+            def upload_to_cloud(file_path):
+                if args.cloud_provider == "gdrive":
+                    result = CloudStorage.upload_to_google_drive(
+                        file_path,
+                        credentials_path=args.gdrive_credentials,
+                        token_path=args.gdrive_token,
+                        folder_id=args.gdrive_folder if args.gdrive_folder else None
+                    )
+                    if result:
+                        logger.info(f"Successfully uploaded to Google Drive: {result.get('webViewLink')}")
+                    else:
+                        logger.error(f"Failed to upload to Google Drive: {file_path}")
+                        
+                elif args.cloud_provider == "s3":
+                    url = CloudStorage.upload_to_aws_s3(
+                        file_path,
+                        bucket_name=args.s3_bucket,
+                        aws_access_key=args.s3_access_key if args.s3_access_key else None,
+                        aws_secret_key=args.s3_secret_key if args.s3_secret_key else None,
+                        region=args.s3_region if args.s3_region else None
+                    )
+                    if url:
+                        logger.info(f"Successfully uploaded to AWS S3: {url}")
+                    else:
+                        logger.error(f"Failed to upload to AWS S3: {file_path}")
+            
+            # Single clip case
+            if args.num_clips <= 1:
+                if formatted_path:
+                    logger.info(f"Uploading clip to {args.cloud_provider}...")
+                    upload_to_cloud(formatted_path)
+            # Multiple clips case
+            else:
+                logger.info(f"Uploading {len(formatted_paths)} clips to {args.cloud_provider}...")
+                for formatted_path in formatted_paths:
+                    upload_to_cloud(formatted_path)
         
         return 0
         
@@ -438,6 +506,56 @@ def interactive_mode(args):
         set_log_level(log_level)
         print(f"Logging level set to: {args.log_level}")
     
+    # Cloud storage options
+    print("\n=== Cloud Storage Options ===")
+    upload_choice = input("Upload output clips to cloud storage? (y/n) [default: n]: ").lower() or "n"
+    args.upload_cloud = upload_choice in ('y', 'yes')
+
+    if args.upload_cloud:
+        print("\nSelect cloud storage provider:")
+        print("1. Google Drive")
+        print("2. AWS S3")
+        
+        provider_choice = input("Enter your choice (1/2) [default: 1]: ") or "1"
+        args.cloud_provider = "gdrive" if provider_choice == "1" else "s3"
+        
+        if args.cloud_provider == "gdrive":
+            print("\n=== Google Drive Options ===")
+            
+            # Check for existing credentials
+            default_creds = os.path.abspath(config.GDRIVE_CREDENTIALS_PATH)
+            if not os.path.exists(default_creds):
+                default_creds = str(config.PROJECT_ROOT / "credentials.json")
+                
+            if os.path.exists(default_creds):
+                use_existing = input(f"Use existing credentials file? ({default_creds}) (y/n) [default: y]: ").lower() or "y"
+                if use_existing in ("y", "yes"):
+                    args.gdrive_credentials = default_creds
+                else:
+                    # Ask for credentials file path
+                    creds_path = input("Enter path to Google Drive credentials.json file: ")
+                    args.gdrive_credentials = os.path.abspath(creds_path) if creds_path else default_creds
+            else:
+                print("No default credentials file found.")
+                creds_path = input("Enter path to Google Drive credentials.json file: ")
+                args.gdrive_credentials = os.path.abspath(creds_path)
+            
+                # Ask for folder ID with the default value shown
+            default_folder = config.GDRIVE_FOLDER_ID
+            folder_prompt = f"Enter Google Drive folder ID [default: {default_folder}]: " if default_folder else "Enter Google Drive folder ID (leave empty for root folder): "
+            args.gdrive_folder = input(folder_prompt) or default_folder
+            
+        else:  # AWS S3
+            print("\n=== AWS S3 Options ===")
+            args.s3_bucket = input("Enter S3 bucket name: ")
+            args.s3_region = input("Enter AWS region (e.g., us-west-1) [optional]: ") or ""
+            
+            use_env_creds = input("Use AWS credentials from environment/config files? (y/n) [default: y]: ").lower() or "y"
+            if use_env_creds not in ("y", "yes"):
+                args.s3_access_key = input("Enter AWS access key ID: ")
+                args.s3_secret_key = input("Enter AWS secret access key: ")
+
+    # Summary of settings
     print("\n=== Configuration Summary ===")
     print(f"Face detection: {args.face_detector}")
     print(f"GPU acceleration: {'Enabled' if args.use_gpu else 'Disabled'}")
@@ -453,6 +571,15 @@ def interactive_mode(args):
         else:
             print(f"  Image: {args.watermark_image}")
         print(f"  Position: {args.watermark_position}")
+    print(f"Cloud storage: {'Enabled' if args.upload_cloud else 'Disabled'}")
+    if args.upload_cloud:
+        print(f"  Provider: {args.cloud_provider}")
+        if args.cloud_provider == "gdrive":
+            print(f"  Credentials path: {args.gdrive_credentials}")
+            print(f"  Folder ID: {args.gdrive_folder or 'Root folder'}")
+        else:
+            print(f"  S3 bucket: {args.s3_bucket}")
+            print(f"  Region: {args.s3_region or 'Default'}")
     print("==========================\n")
     
     return args
