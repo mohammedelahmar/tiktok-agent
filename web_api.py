@@ -55,6 +55,7 @@ class ProcessingConfig(BaseModel):
     watermark_enabled: bool = False
     watermark_text: str = ""
     generate_thumbnail: bool = True
+    captions_enabled: bool = False
     face_detection: str = "mediapipe"
     
 class JobStatus(BaseModel):
@@ -128,6 +129,17 @@ def process_video_task(job_id: str, cfg: dict):
                 watermark_options=watermark_opts
             )
             
+            # Captions
+            # Captions
+            if cfg.get('captions_enabled'):
+                 try:
+                     from core.captioner import Captioner
+                     # Re-instantiate for each clip to be safe in worker
+                     captioner_instance = Captioner() 
+                     formatted_path = captioner_instance.process_video(formatted_path)
+                 except Exception as e:
+                     logger.error(f"Captioning failed for clip {i}: {e}")
+            
             # Thumbnail
             thumb_path = None
             if cfg['generate_thumbnail']:
@@ -192,6 +204,7 @@ async def start_youtube_job(url: str,
                           duration: float = 15.0,
                           format_method: str = "crop",
                           watermark: str = None,
+                          captions: bool = False,
                           background_tasks: BackgroundTasks = None):
     
     job_id = str(uuid.uuid4())
@@ -204,7 +217,8 @@ async def start_youtube_job(url: str,
         format_method=format_method,
         watermark_enabled=bool(watermark),
         watermark_text=watermark or "",
-        generate_thumbnail=True
+        generate_thumbnail=True,
+        captions_enabled=bool(captions)
     )
     
     jobs[job_id] = {
@@ -235,6 +249,7 @@ async def start_file_job(filename: str,
                        duration: float = 15.0,
                        format_method: str = "crop",
                        watermark: str = None,
+                       captions: bool = False,
                        background_tasks: BackgroundTasks = None):
                        
     job_id = str(uuid.uuid4())
@@ -251,7 +266,8 @@ async def start_file_job(filename: str,
         format_method=format_method,
         watermark_enabled=bool(watermark),
         watermark_text=watermark or "",
-        generate_thumbnail=True
+        generate_thumbnail=True,
+        captions_enabled=bool(captions)
     )
     
     jobs[job_id] = {
