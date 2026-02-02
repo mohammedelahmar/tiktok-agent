@@ -10,6 +10,7 @@ import config
 from utils.logger import logger
 from models.engagement_model import EngagementModel
 from core.clipper import VideoClipper
+from core.hook_optimizer import HookOptimizer  # [NEW]
 from utils.helpers import get_output_path
 
 class ViralClipExtractor:
@@ -22,6 +23,13 @@ class ViralClipExtractor:
         """
         self.engagement_model = engagement_model or EngagementModel()
         self.clipper = clipper or VideoClipper()
+        try:
+            self.hook_optimizer = HookOptimizer()
+            logger.info("Smart Hook Optimizer initialized.")
+        except Exception as e:
+            logger.warning(f"Failed to init Hook Optimizer (librosa missing?): {e}")
+            self.hook_optimizer = None
+            
         self._model_initialized = False
     
     def _ensure_model_ready(self):
@@ -364,14 +372,17 @@ class ViralClipExtractor:
         else:
             return None, -1
     
-    def _find_best_clip_window_efficient(self, times, scores, clip_duration, excluded_ranges):
+    
+    def _find_best_clip_window_efficient(self, times, scores, clip_duration, excluded_ranges, video_path=None):
         """Find the best window of segments for the clip using efficient algorithm
+           and optionally re-score with Hook Optimizer.
         
         Args:
             times: Numpy array of segment start times
             scores: Numpy array of segment scores
             clip_duration: Desired clip duration in seconds
             excluded_ranges: List of (start_time, end_time) tuples to exclude
+            video_path: Optional path to video (required for hook scoring)
             
         Returns:
             tuple: (best_start_time, best_score)
@@ -383,7 +394,6 @@ class ViralClipExtractor:
         start_time = time.time()
         
         # Calculate the segment duration based on the times array
-        # Assume uniform segment duration
         if len(times) > 1:
             segment_duration = times[1] - times[0]
         else:
@@ -403,8 +413,8 @@ class ViralClipExtractor:
         # Use cumulative sum for efficient window calculation
         cumulative_scores = np.cumsum(np.pad(scores, (1, 0), 'constant'))
         
-        best_start_idx = -1
-        best_score = -1
+        # Store top candidates (start_time, visual_score)
+        candidates = []
         
         for i in range(len(times) - window_segments + 1):
             # Skip if any segment in this window is excluded
@@ -415,15 +425,43 @@ class ViralClipExtractor:
             window_sum = cumulative_scores[i+window_segments] - cumulative_scores[i]
             window_score = window_sum / window_segments
             
-            # Update best window if score is higher
-            if window_score > best_score:
-                best_start_idx = i
-                best_score = window_score
-        
-        logger.debug(f"Best window search completed in {time.time()-start_time:.4f}s")
-        
-        # Return the best starting time and score
-        if best_start_idx >= 0:
-            return times[best_start_idx], best_score
-        else:
+            candidates.append((times[i], window_score))
+            
+        if not candidates:
             return None, -1
+            
+        # Sort candidates by visual score descending
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        
+        # If Hook Analyzer is available and video_path is provided, test top 5
+        if hasattr(self, 'hook_optimizer') and video_path and self.hook_optimizer:
+            # Check top 5 visually best candidates
+            top_candidates = candidates[:5]
+            final_best_candidate = None
+            final_best_score = -1
+            
+            logger.info(f"Analyzing hooks for top {len(top_candidates)} candidates...")
+            
+            for start_t, visual_score in top_candidates:
+                # Calculate hook score (0-1)
+                hook_score = self.hook_optimizer.calculate_hook_score(video_path, start_t)
+                
+                # Combine scores: 70% Visual, 30% Hook
+                # Ensure visual score is roughly normalized? It usually is 0-1.
+                combined_score = (visual_score * 0.7) + (hook_score * 0.3)
+                
+                logger.debug(f"Candidate {start_t:.2f}s: Visual={visual_score:.3f}, Hook={hook_score:.3f} -> Combined={combined_score:.3f}")
+                
+                if combined_score > final_best_score:
+                    final_best_score = combined_score
+                    final_best_candidate = (start_t, combined_score) # Return combined score? Or original? 
+                    # Returning combined seems fair for ranking.
+            
+            if final_best_candidate:
+                return final_best_candidate
+            else:
+                return candidates[0]
+                
+        else:
+            # Just return the best visual one
+            return candidates[0]
