@@ -51,7 +51,11 @@ const ProcessingStatus = ({ job, onReset }) => {
       
       {/* Time Check */}
       <div className="flex justify-between text-xs text-slate-500 font-mono mb-8">
-         <span>Started: {new Date(job.created_at * 1000).toLocaleTimeString()}</span>
+         {job.created_at ? (
+            <span>Started: {new Date(job.created_at * 1000).toLocaleTimeString()}</span>
+         ) : (
+            <span>Starting...</span>
+         )}
          {job.status === 'processing' && (
              <span className="flex items-center gap-1"><Clock size={12}/> Est. remaining: calculating...</span>
          )}

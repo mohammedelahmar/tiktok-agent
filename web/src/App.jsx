@@ -64,6 +64,7 @@ function App() {
     }
 
     try {
+      setJobStatus({ status: 'preparing', message: 'Connecting to server...' });
       setStage('processing');
       setError(null);
       
