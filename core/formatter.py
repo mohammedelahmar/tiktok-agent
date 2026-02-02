@@ -87,23 +87,68 @@ class VideoFormatter:
         try:
             watermark = None
             
-            # Create text watermark
+            # Create text watermark using PIL to avoid ImageMagick dependency (TextClip issues on Windows)
             if watermark_type == 'text':
                 text = options.get('text', config.WATERMARK_TEXT)
                 text_size = options.get('text_size', config.WATERMARK_TEXT_SIZE)
                 text_color = options.get('text_color', config.WATERMARK_TEXT_COLOR)
-                font = options.get('font', config.WATERMARK_FONT) or None
+                font_name = options.get('font', config.WATERMARK_FONT) or 'Arial'
                 
-                logger.info(f"Adding text watermark: '{text}'")
+                logger.info(f"Adding text watermark: '{text}' using PIL")
                 
-                watermark = TextClip(
-                    text, 
-                    fontsize=text_size,
-                    color=text_color,
-                    font=font,
-                    stroke_color='black',
-                    stroke_width=2
-                )
+                # Create image with PIL
+                from PIL import Image, ImageDraw, ImageFont
+                
+                # Estimate dimensions (rough calc if font not exact match, but usually fine)
+                # Create dummy image to measure text
+                dummy_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(dummy_img)
+                
+                try:
+                    # Try loading font, fallback to default
+                    # On Windows, 'Arial' might need 'arial.ttf'
+                    font_file = 'arial.ttf' if font_name.lower() == 'arial' else font_name
+                    pil_font = ImageFont.truetype(font_file, text_size)
+                except Exception:
+                    pil_font = ImageFont.load_default()
+                    logger.warning("Could not load requested font, using default PIL font")
+
+                # Get text bounding box
+                bbox = draw.textbbox((0, 0), text, font=pil_font)
+                text_w = bbox[2] - bbox[0]
+                text_h = bbox[3] - bbox[1]
+                
+                # Add some padding/margin for the stroke
+                w = text_w + 20
+                h = text_h + 20
+                
+                # Create actual image
+                img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(img)
+                
+                # Draw text with stroke (black outline) - manual stroke for better quality than PIL default
+                x, y = 10, 10
+                stroke_width = 2
+                stroke_color = 'black'
+                
+                # Draw outline
+                for adj_x in range(-stroke_width, stroke_width+1):
+                    for adj_y in range(-stroke_width, stroke_width+1):
+                        draw.text((x+adj_x, y+adj_y), text, font=pil_font, fill=stroke_color)
+                
+                # Draw main text
+                draw.text((x, y), text, font=pil_font, fill=text_color)
+                
+                # Save temp image
+                temp_watermark_path = "temp_watermark.png"
+                img.save(temp_watermark_path)
+                
+                # Load as ImageClip
+                watermark = ImageClip(temp_watermark_path)
+                
+                # Note: We should probably delete the temp file later, or overwrite it each time.
+                # ImageClip might create a lock, so we leave it for now or rely on OS cleanup.
+                
                 
             # Create image watermark
             elif watermark_type == 'image':
