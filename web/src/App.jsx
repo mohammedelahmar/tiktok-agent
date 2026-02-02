@@ -6,7 +6,7 @@ import SettingsSection from './components/SettingsSection';
 import ProcessingStatus from './components/ProcessingStatus';
 import ResultsGrid from './components/ResultsGrid';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 function App() {
   // Application State
