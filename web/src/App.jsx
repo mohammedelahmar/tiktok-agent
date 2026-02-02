@@ -27,6 +27,7 @@ function App() {
     watermark_enabled: false,
     watermark_text: '',
     generate_thumbnail: true,
+    captions_enabled: false,
     face_detection: 'mediapipe'
   });
 
@@ -76,6 +77,7 @@ function App() {
          endpoint += `&duration=${params.duration}`;
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
+         if (params.captions_enabled) endpoint += `&captions=true`;
       } else {
          // Query params for File
          endpoint += `?filename=${encodeURIComponent(params.source_path)}`;
@@ -83,6 +85,7 @@ function App() {
          endpoint += `&duration=${params.duration}`;
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
+         if (params.captions_enabled) endpoint += `&captions=true`;
       }
 
       const response = await axios.post(`${API_BASE}${endpoint}`);

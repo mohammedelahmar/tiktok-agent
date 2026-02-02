@@ -107,6 +107,23 @@ const SettingsSection = ({ params, onChange }) => {
                 />
              )}
           </div>
+
+          <div className="space-y-2">
+             <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-300">AI Captions</label>
+                <div 
+                  onClick={() => handleChange('captions_enabled', !params.captions_enabled)}
+                  className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${
+                      params.captions_enabled ? 'bg-primary-600' : 'bg-slate-700'
+                  }`}
+                >
+                   <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${
+                       params.captions_enabled ? 'left-6' : 'left-1'
+                   }`} />
+                </div>
+             </div>
+             <p className="text-xs text-slate-500">Auto-generate subtitles (Karaoke style)</p>
+          </div>
            
            <div className="flex items-center gap-3 p-3 bg-slate-950/50 rounded-lg border border-slate-800">
                <ImageIcon size={16} className="text-slate-400" />
