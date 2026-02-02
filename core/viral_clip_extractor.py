@@ -79,10 +79,19 @@ class ViralClipExtractor:
             
         logger.debug(f"Scored {len(segment_scores)} segments in {time.time()-start_time:.2f}s")
         
+        
+        # Convert to numpy arrays for easier manipulation
+        times = np.array([s[0] for s in segment_scores])
+        scores = np.array([s[1] for s in segment_scores])
+        
+        # Sort by time to ensure proper order
+        sort_idx = np.argsort(times)
+        times = times[sort_idx]
+        scores = scores[sort_idx]
+
         # Find the best starting point for a clip of the requested duration
-        best_start, best_score = self._find_best_clip_window(
-            segment_scores, 
-            clip_duration
+        best_start, best_score = self._find_best_clip_window_efficient(
+            times, scores, clip_duration, [], video_path=video_path
         )
         
         if best_start is None or best_score < 0:
@@ -175,8 +184,9 @@ class ViralClipExtractor:
         # First find all the best segments
         for i in range(num_clips):
             # Find best clip avoiding excluded ranges
+            # Find best clip avoiding excluded ranges
             best_start, best_score = self._find_best_clip_window_efficient(
-                times, scores, clip_duration, excluded_ranges
+                times, scores, clip_duration, excluded_ranges, video_path=video_path
             )
             
             # If we couldn't find another good clip, break
