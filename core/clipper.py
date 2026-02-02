@@ -95,8 +95,31 @@ class VideoClipper:
                     logger.debug(f"Cleaned up temporary audio file: {temp_audio_file}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up temporary file {temp_audio_file}: {str(e)}")
-    
-    # Add function to embed metadata
+    def generate_thumbnail(self, video_path, output_path, timestamp):
+        """Generate a thumbnail image from a video at a specific timestamp
+        
+        Args:
+            video_path: Path to the video file
+            output_path: Path to save the thumbnail image
+            timestamp: Time in seconds to extract the frame from
+            
+        Returns:
+            str: Path to the generated thumbnail, or None if failed
+        """
+        try:
+            with VideoFileClip(video_path) as video:
+                # Ensure timestamp is within bounds
+                timestamp = max(0, min(timestamp, video.duration - 0.1))
+                
+                # Save the frame
+                video.save_frame(output_path, t=timestamp)
+                
+                logger.info(f"Thumbnail saved to {output_path}")
+                return output_path
+                
+        except Exception as e:
+            logger.error(f"Error generating thumbnail: {str(e)}")
+            return None
 
     def embed_metadata(self, video_path, metadata):
         """Embed metadata into a video file using ffmpeg

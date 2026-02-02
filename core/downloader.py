@@ -1,6 +1,7 @@
 import os
 import time
-from pytube import YouTube
+import glob
+import yt_dlp
 import config
 from utils.logger import logger
 from utils.helpers import get_video_id_from_url, sanitize_filename
@@ -20,7 +21,7 @@ class YouTubeDownloader:
         os.makedirs(self.output_dir, exist_ok=True)
     
     def download(self, url):
-        """Download a video from YouTube with retry logic
+        """Download a video from YouTube with retry logic using yt-dlp
         
         Args:
             url: YouTube video URL
@@ -28,45 +29,55 @@ class YouTubeDownloader:
         Returns:
             Path to downloaded video file or None if download failed
         """
+        # Configure yt-dlp options
+        # We want mp4 format, best quality
+        ydl_opts = {
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': os.path.join(self.output_dir, '%(title)s_%(id)s.%(ext)s'),
+            'restrictfilenames': True,  # Ensure safe filenames
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+        }
+
         for attempt in range(self.max_retries):
             try:
                 logger.info(f"Downloading video from {url} (Attempt {attempt+1}/{self.max_retries})")
-                yt = YouTube(url)
                 
-                # Get video ID for filename
-                video_id = get_video_id_from_url(url) or yt.video_id
-                
-                # Generate filename
-                title = sanitize_filename(yt.title)
-                filename = f"{title}_{video_id}.mp4"
-                output_path = os.path.join(self.output_dir, filename)
-                
-                # If file already exists, return the path
-                if os.path.exists(output_path):
-                    logger.info(f"Video already downloaded: {output_path}")
-                    return output_path
-                
-                # Download video
-                logger.info(f"Downloading '{yt.title}' at {config.YT_DOWNLOAD_RESOLUTION}")
-                
-                # Try to get the desired resolution
-                stream = (yt.streams
-                          .filter(progressive=True, file_extension="mp4")
-                          .order_by("resolution")
-                          .desc()
-                          .first())
-                
-                if not stream:
-                    logger.warning(f"No suitable stream found for {url}")
-                    return None
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # Extract info first to get filename and check if exists
+                    info = ydl.extract_info(url, download=False)
+                    video_title = info.get('title', 'video')
+                    video_id = info.get('id', 'unknown')
                     
-                downloaded_path = stream.download(
-                    output_path=self.output_dir,
-                    filename=filename
-                )
-                
-                logger.info(f"Download complete: {downloaded_path}")
-                return downloaded_path
+                    # Prepare expected filename pattern (yt-dlp sanitizes it)
+                    # We let yt-dlp handle the downloading and naming, then we find the file
+                    
+                    # Perform download
+                    logger.info(f"Downloading '{video_title}'...")
+                    error_code = ydl.download([url])
+                    
+                    if error_code != 0:
+                        raise Exception(f"yt-dlp returned error code {error_code}")
+                    
+                    # Find the downloaded file
+                    # We use the prepare_filename method to know perfectly where it is
+                    filename = ydl.prepare_filename(info)
+                    
+                    # Verify it exists
+                    if os.path.exists(filename):
+                        logger.info(f"Download complete: {filename}")
+                        return filename
+                    else:
+                        # Fallback search if something went wrong with name prediction
+                        # (this is rare with prepare_filename but good for safety)
+                        search_pattern = os.path.join(self.output_dir, f"*{video_id}*.mp4")
+                        files = glob.glob(search_pattern)
+                        if files:
+                            logger.info(f"Download complete: {files[0]}")
+                            return files[0]
+                                            
+                    return None
                 
             except Exception as e:
                 logger.warning(f"Error downloading video (attempt {attempt+1}): {str(e)}")
@@ -74,5 +85,5 @@ class YouTubeDownloader:
                     logger.info(f"Retrying in {self.retry_delay} seconds...")
                     time.sleep(self.retry_delay)
                 else:
-                    logger.error(f"Failed to download after {self.max_retries} attempts")
+                    logger.error(f"Failed to download after {self.max_retries} attempts: {str(e)}")
                     return None
