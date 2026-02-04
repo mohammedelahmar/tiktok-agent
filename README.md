@@ -1,154 +1,127 @@
 # 🌟 TikTok Agent
 
-TikTok Agent is an advanced tool for automatically extracting viral-worthy clips from videos and formatting them for TikTok. It uses engagement modeling to identify the most promising segments of your content and transforms them into TikTok-ready videos.
+**TikTok Agent** is an advanced AI-powered tool that automatically extracts viral-worthy clips from long-form videos and formats them for TikTok, YouTube Shorts, and Instagram Reels.
+
+It features a **modern Web UI** where you can review AI-selected candidates, manually trim clips with frame precision, and batch render your final videos.
 
 ---
 
 ## ✨ Features
 
-* **Viral Clip Extraction**: Automatically identifies the most engaging segments of videos
-* **Multiple Clips**: Extract several viral clips from a single video
-* **Video Formatting**: Converts videos to TikTok's 9:16 aspect ratio using:
-
-  * Crop (center focus)
-  * Blur (background blur)
-  * Bars (letterbox)
-* **Watermarking**: Add text or image watermarks to your videos
-* **Multi-source Input**: Process local video files or YouTube videos
-* **Cloud Storage**: Automatically upload processed clips to Google Drive or AWS S3
-* **Face Detection**: Uses advanced face detection to improve framing (OpenCV or MediaPipe)
-* **Performance Optimization**: Parallel processing and optional GPU acceleration
+*   **🤖 AI Viral Detection**: Automatically identifies the most engaging segments using motion scoring and scene analysis.
+*   **🖥️ Interactive Web UI**: A beautiful, dark-mode interface for managing your video projects.
+*   **✂️ Precision Trimmer**: Watch AI-selected clips and fine-tune start/end times with a frame-perfect scrubber before rendering.
+*   **📱 9:16 Auto-Formatting**: Smart cropping and background blur modes to convert landscape video to vertical format.
+*   **🎯 Smart Hook Optimization**: Automatically detects and preserves the most engaging "hook" moments.
+*   **🌊 Watermarking**: Add custom text or image watermarks.
+*   **📥 Multi-Source**: Support for YouTube URLs and local file uploads.
 
 ---
 
-## ⚙️ Installation
+## 🚀 Quick Start (Web App)
+
+### Prerequisites
+*   Python 3.8+
+*   Node.js & npm
+*   FFmpeg (must be in your system PATH)
+
+### 1. Backend Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/tiktok_agent.git
 cd tiktok_agent
 
-# Install dependencies
+# Create virtual environment (optional but recommended)
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Mac/Linux
+source venv/bin/activate
+
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
----
-
-## 🚀 Usage
-
-### Interactive Mode
-
-For an easy guided experience:
+### 2. Frontend Setup
 
 ```bash
-python main.py
+cd web
+npm install
 ```
 
-### Command Line Interface
+### 3. Run the App
 
-**Basic usage:**
+You need to run the backend and frontend in separate terminals.
+
+**Terminal 1 (Backend):**
+```bash
+# From root directory
+python web_api.py
+```
+
+**Terminal 2 (Frontend):**
+```bash
+# From web directory
+npm run dev
+```
+
+Open your browser at `http://localhost:5173` to start creating!
+
+---
+
+## 🛠️ Usage Guide
+
+1.  **Input**: Paste a YouTube URL or upload a video file.
+2.  **Configure**: Set the number of clips, duration, and format style (Crop/Blur).
+3.  **Analyze**: The AI scans the video (take a coffee break ☕).
+4.  **Review**:
+    *   You'll see a list of "Viral Candidates" found by the AI.
+    *   Click **Adjust** on any clip to open the Trimmer.
+    *   Use the sliders to fix the timing.
+    *   Click **Confirm**.
+5.  **Render**: Click "Render All Clips" to generate the final MP4s.
+
+---
+
+## 💻 CLI Usage (Advanced)
+
+You can also use the tool purely from the command line for automation.
 
 ```bash
-# Process a local video file
-python main.py --file /path/to/video.mp4
-
 # Process a YouTube video
-python main.py --youtube https://www.youtube.com/watch?v=VIDEO_ID
+python main.py --youtube https://youtu.be/VIDEO_ID --num-clips 3
+
+# Process a local file
+python main.py --file video.mp4
+
+# Advanced options
+python main.py --file video.mp4 --format blur --watermark --watermark-text "@MyChannel"
 ```
 
-**Extract multiple clips:**
+### Key Arguments
 
-```bash
-python main.py --file /path/to/video.mp4 --num-clips 3 --duration 15
-```
-
-**Add watermarks:**
-
-```bash
-python main.py --youtube https://www.youtube.com/watch?v=VIDEO_ID --watermark --watermark-text "@YourTikTokHandle"
-```
-
-**Upload to cloud:**
-
-```bash
-# Google Drive
-python main.py --file /path/to/video.mp4 --upload-cloud --cloud-provider gdrive
-
-# AWS S3
-python main.py --file /path/to/video.mp4 --upload-cloud --cloud-provider s3
-```
+| Argument | Description | Default |
+| :--- | :--- | :--- |
+| `--youtube` | YouTube URL to download | |
+| `--file` | Local file path | |
+| `--num-clips` | Number of clips to extract | 1 |
+| `--duration` | Target duration in seconds | 15.0 |
+| `--format` | `crop` (center), `blur` (blurred bg), `bars` | crop |
+| `--use-gpu` | Enable GPU acceleration | False |
 
 ---
 
-## 📁 Configuration
+## 🏗️ Architecture
 
-Configure the tool using:
-
-* Command line arguments
-* Environment variables (prefixed with `TIKTOK_`)
-* The `config.py` file
-
-### Key Options
-
-| Option                  | Description                           | Default        |
-| ----------------------- | ------------------------------------- | -------------- |
-| `OUTPUT_FORMAT`         | Video output format                   | `mp4`          |
-| `DEFAULT_CLIP_DURATION` | Length of extracted clips             | `15.0` seconds |
-| `WATERMARK_ENABLED`     | Enable watermark                      | `False`        |
-| `USE_ENGAGEMENT_MODEL`  | Use ML model for viral clip detection | `True`         |
-| `FACE_DETECTOR`         | Face detection method                 | `mediapipe`    |
-| `CLOUD_STORAGE_ENABLED` | Enable cloud uploads                  | `False`        |
-
----
-
-## ⚖️ Advanced Features
-
-### Face Detection
-
-```bash
-python main.py --file video.mp4 --face-detector mediapipe
-```
-
-### Performance Optimization
-
-```bash
-python main.py --youtube https://youtu.be/video_id --workers 8 --use-gpu
-```
-
-### Format Options
-
-```bash
-python main.py --file video.mp4 --format blur --watermark
-```
-
-### Cloud Storage Setup
-
-#### Google Drive
-
-1. Create credentials in the Google Cloud Console
-2. Save the credentials file as `credentials.json`
-3. Run with:
-
-```bash
-python main.py --upload-cloud --cloud-provider gdrive
-```
-
-#### AWS S3
-
-Configure with:
-
-```bash
-python main.py --upload-cloud --cloud-provider s3 --s3-bucket your-bucket --s3-region your-region
-```
+*   **Backend**: Python, FastAPI, OpenCV, PyTorch, MoviePy
+*   **Frontend**: React, Vite, TailwindCSS, Lucide Icons
+*   **AI Models**:
+    *   **Face Detection**: MediaPipe / OpenCV DNN
+    *   **Visual Interest**: Motion energy & scene complexity analysis
 
 ---
 
 ## 📄 License
 
-**MIT License**
-
----
-
-## 💪 Contributing
-
-Contributions welcome! Please feel free to submit a Pull Request.
+MIT License. Free to use and modify!

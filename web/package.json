@@ -14,8 +14,10 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.30.0",
     "lucide-react": "^0.563.0",
+    "rc-slider": "^11.1.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-player": "^3.4.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

@@ -22,6 +22,7 @@ from core.file_loader import VideoFileLoader
 from core.viral_clip_extractor import ViralClipExtractor
 from core.formatter import VideoFormatter
 from core.clipper import VideoClipper
+from utils.logger import setup_logger, logger
 
 # Initialize FastAPI
 app = FastAPI(title="TikTok Agent API", description="API for extracting viral clips")
@@ -36,7 +37,7 @@ app.add_middleware(
 )
 
 # Setup logging
-set_log_level(logging.INFO)
+setup_logger()
 
 # Global executor for CPU-bound tasks
 # We limit workers to avoid overloading the system
@@ -57,13 +58,24 @@ class ProcessingConfig(BaseModel):
     generate_thumbnail: bool = True
     captions_enabled: bool = False
     face_detection: str = "mediapipe"
-    
+    mode: str = "process" # 'process' or 'analyze'
+
+class RenderRequest(BaseModel):
+    job_id: str
+    clips: List[dict] # List of {'start': float, 'end': float, 'id': int}
+    format_method: str = "crop"
+    watermark_enabled: bool = False
+    watermark_text: str = ""
+    generate_thumbnail: bool = True
+    captions_enabled: bool = False
+
 class JobStatus(BaseModel):
     job_id: str
     status: str  # pending, processing, completed, failed
     progress: float = 0.0
     message: str = ""
     result: Optional[dict] = None
+    config: Optional[dict] = None
     created_at: float
 
 # --- Worker Function (Runs in separate process) ---
@@ -90,7 +102,37 @@ def process_video_task(job_id: str, cfg: dict):
             
         if not video_path:
             return {"success": False, "error": "Failed to get video"}
+            
+        # Check Mode
+        if cfg.get('mode') == 'analyze':
+            # Just find candidates
+            extractor = ViralClipExtractor()
+            candidates = extractor.find_candidates(
+                video_path,
+                num_clips=cfg['num_clips'],
+                clip_duration=cfg['clip_duration'],
+                min_gap=cfg['min_gap']
+            )
+            
+            # Return candidates + video info
+            logger.info(f"Analyze finished. Found {len(candidates)} candidates: {candidates}")
+            return {
+                "success": True, 
+                "candidates": [
+                    {
+                        "id": int(i), 
+                        "start": float(s), 
+                        "end": float(e), 
+                        "score": float(score)
+                    } 
+                    for i, s, e, score in candidates
+                ],
+                "video_filename": os.path.basename(video_path),
+                "mode": "analyzed"
+            }
 
+        # Normal Processing (or Render Step)
+        
         # 2. Extract Clips
         config.FACE_DETECTOR = cfg['face_detection'] # Set global config for this worker
         extractor = ViralClipExtractor()
@@ -183,11 +225,20 @@ async def run_processing_job(job_id: str, config: ProcessingConfig):
             cfg_dict
         )
         
+        
         if result["success"]:
-            jobs[job_id]["status"] = "completed"
-            jobs[job_id]["message"] = "Processing complete"
+            # Check if this was an analysis job
+            if result.get("mode") == "analyzed":
+                jobs[job_id]["status"] = "analyzed"
+                jobs[job_id]["message"] = "Analysis complete. Waiting for user review."
+            else:
+                jobs[job_id]["status"] = "completed"
+                jobs[job_id]["message"] = "Processing complete"
+            
             jobs[job_id]["progress"] = 1.0
             jobs[job_id]["result"] = result
+            logger.info(f"Job {job_id} stored result: {result}")
+
         else:
             jobs[job_id]["status"] = "failed"
             jobs[job_id]["message"] = result.get("error", "Unknown error")
@@ -205,6 +256,7 @@ async def start_youtube_job(url: str,
                           format_method: str = "crop",
                           watermark: str = None,
                           captions: bool = False,
+                          mode: str = "process",
                           background_tasks: BackgroundTasks = None):
     
     job_id = str(uuid.uuid4())
@@ -215,10 +267,10 @@ async def start_youtube_job(url: str,
         num_clips=num_clips,
         clip_duration=duration,
         format_method=format_method,
-        watermark_enabled=bool(watermark),
         watermark_text=watermark or "",
         generate_thumbnail=True,
-        captions_enabled=bool(captions)
+        captions_enabled=bool(captions),
+        mode=mode
     )
     
     jobs[job_id] = {
@@ -250,6 +302,7 @@ async def start_file_job(filename: str,
                        format_method: str = "crop",
                        watermark: str = None,
                        captions: bool = False,
+                       mode: str = "process",
                        background_tasks: BackgroundTasks = None):
                        
     job_id = str(uuid.uuid4())
@@ -264,10 +317,10 @@ async def start_file_job(filename: str,
         num_clips=num_clips,
         clip_duration=duration,
         format_method=format_method,
-        watermark_enabled=bool(watermark),
         watermark_text=watermark or "",
         generate_thumbnail=True,
-        captions_enabled=bool(captions)
+        captions_enabled=bool(captions),
+        mode=mode
     )
     
     jobs[job_id] = {
@@ -287,14 +340,195 @@ async def get_job_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     
     job = jobs[job_id]
+    if job.get("status") == "analyzed":
+        logger.info(f"Returning status for {job_id}. Result keys: {job.get('result', {}).keys()}")
     return JobStatus(
         job_id=job_id,
         status=job["status"],
         progress=job.get("progress", 0.0),
         message=job.get("message", ""),
         result=job.get("result"),
+        config=job.get("config"),
         created_at=job["created_at"]
     )
+
+# --- Render Worker ---
+def process_render_task(job_id, video_path, clips, cfg):
+    """
+    Worker for rendering selected clips
+    """
+    try:
+
+         clipper = VideoClipper()
+         formatter = VideoFormatter()
+         
+         logger.info(f"Starting render task for {len(clips)} clips: {clips}")
+         
+         results = []
+         
+         watermark_opts = None
+         if cfg['watermark_enabled']:
+             watermark_opts = {
+                'enabled': True,
+                'type': 'text',
+                'text': cfg['watermark_text'],
+                'position': 'bottom-right',
+                'opacity': 0.7
+            }
+         
+         for i, clip_data in enumerate(clips):
+             start = clip_data['start']
+             end = clip_data['end']
+             score = clip_data.get('score', 0.0)
+             
+             # Extract
+             # We use proper output path to ensure uniqueness
+             # But here we do manual clipping
+             clip_path = clipper.clip(video_path, start, end)
+             
+             if not clip_path:
+                 continue
+                 
+             # Format
+             formatted_path = formatter.format_to_9_16(
+                clip_path,
+                method=cfg['format_method'],
+                watermark_options=watermark_opts
+            )
+             
+             # Captions
+             if cfg.get('captions_enabled'):
+                 try:
+                     from core.captioner import Captioner
+                     captioner_instance = Captioner() 
+                     formatted_path = captioner_instance.process_video(formatted_path)
+                 except Exception as e:
+                     logger.error(f"Captioning failed for clip {i}: {e}")
+            
+             # Thumbnail
+             thumb_path = None
+             if cfg['generate_thumbnail']:
+                 mid_point = (start + end) / 2
+                 t_path = str(Path(clip_path).with_suffix('')) + "_thumb.jpg"
+                 thumb_path = clipper.generate_thumbnail(video_path, t_path, mid_point)
+                 
+             if formatted_path:
+                results.append({
+                    "id": i,
+                    "path": formatted_path,
+                    "filename": os.path.basename(formatted_path),
+                    "thumbnail": os.path.basename(thumb_path) if thumb_path else None,
+                    "start": start,
+                    "end": end,
+                    "score": score
+                })
+         
+         return {"success": True, "clips": results}
+         
+    except Exception as e:
+        logger.error(f"Render error: {e}")
+        return {"success": False, "error": str(e)}
+
+async def run_render_job(job_id, video_path, clips, config):
+    jobs[job_id]["status"] = "processing"
+    jobs[job_id]["message"] = "Rendering specific clips..."
+    
+    loop = asyncio.get_running_loop()
+    
+    try:
+        # We need a simplify config for pickling
+        cfg_dict = config.dict()
+        
+        result = await loop.run_in_executor(
+            process_executor,
+            process_render_task,
+            job_id,
+            video_path,
+            clips,
+            cfg_dict
+        )
+        
+        if result["success"]:
+            jobs[job_id]["status"] = "completed"
+            jobs[job_id]["message"] = "Rendering complete"
+            jobs[job_id]["result"] = result
+        else:
+             jobs[job_id]["status"] = "failed"
+             jobs[job_id]["message"] = result.get("error", "Unknown error")
+             
+    except Exception as e:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["message"] = f"Render error: {str(e)}"
+
+
+@app.post("/api/render")
+async def render_clips(req: RenderRequest, background_tasks: BackgroundTasks):
+    # 1. Look up original job to get video path
+    # But wait, the original job might have finished or been cleared if we restart server.
+    # ideally we stored this persistently. 
+    # For now, we assume user flow is continuous.
+    
+    # Actually, we should pass video_path in request or re-derive it?
+    # Security risk if we allow arbitrary paths.
+    
+    # Better: Look up job_id globally.
+    stored_job = jobs.get(req.job_id)
+    if not stored_job:
+        raise HTTPException(status_code=404, detail="Original job not found or expired")
+        
+    # Get video path from stored result
+    # The 'analyzed' result has 'video_filename'
+    if not stored_job.get("result") or not stored_job["result"].get("video_filename"):
+         raise HTTPException(status_code=400, detail="Job has no video information")
+    
+    video_filename = stored_job["result"]["video_filename"]
+    # We look in Inputs dir
+    # Need to handle both YouTube downloads (which go to inputs) and uploaded files
+    video_path = str(config.INPUTS_DIR / video_filename)
+    
+    if not os.path.exists(video_path):
+         # Try finding it with glob if youtube dl did something weird (already handled in logic but fallback)
+         import glob
+         search = glob.glob(str(config.INPUTS_DIR / f"*{video_filename}*"))
+         if search:
+             video_path = search[0]
+         else:
+             raise HTTPException(status_code=404, detail="Source video file missing")
+
+    # Create new job or update existing?
+    # Let's update existing to keep flow simple for frontend polling
+    # jobs[job_id]["status"] = "pending_render"
+    
+    # Update config args from request
+    # stored_job["config"]...
+    # Actually create a temporary config object for the worker
+    # Create NEW job for rendering to avoid overwriting the analysis job state too early
+    render_job_id = str(uuid.uuid4())
+    
+    jobs[render_job_id] = {
+        "job_id": render_job_id,
+        "status": "pending",
+        "created_at": time.time(),
+        "config": {} # Will be filled by worker, or we can copy relevant parts
+    }
+
+    render_config = ProcessingConfig(
+        source_type="file", 
+        source_path=video_path,
+        format_method=req.format_method,
+        watermark_enabled=req.watermark_enabled,
+        watermark_text=req.watermark_text,
+        generate_thumbnail=req.generate_thumbnail,
+        captions_enabled=req.captions_enabled,
+        mode="process",
+        num_clips=len(req.clips),
+        clip_duration=0 
+    )
+    
+    background_tasks.add_task(run_render_job, render_job_id, video_path, req.clips, render_config)
+    
+    return {"status": "rendering_started", "job_id": render_job_id}
+
 
 # Serve output files
 @app.get("/files/{filename}")
@@ -305,6 +539,21 @@ async def get_file(filename: str):
          # But let's check subdirs if needed. For now assuming flat output dir from main.py logic
          raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
+
+# Serve Inputs (for preview)
+@app.get("/inputs/{filename}")
+async def get_input_file(filename: str):
+    file_path = config.INPUTS_DIR / filename
+    if not file_path.exists():
+         raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+
+# Debug endpoint to receive logs from frontend
+@app.post("/api/debug")
+async def receive_debug_log(payload: dict):
+    logger.info(f"FRONTEND DEBUG: {payload}")
+    return {"status": "ok"}
 
 # Serve frontend (static files) - This will be enabled once frontend is built
 # app.mount("/", StaticFiles(directory="web/dist", html=True), name="static")

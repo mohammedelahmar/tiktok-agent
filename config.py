@@ -44,7 +44,7 @@ USE_ENGAGEMENT_MODEL = os.environ.get("TIKTOK_USE_ENGAGEMENT_MODEL", "1").lower(
 MODEL_WEIGHTS_PATH = MODELS_DIR / "engagement_weights.pth"
 
 # Face detection settings
-FACE_DETECTOR = os.environ.get("TIKTOK_FACE_DETECTOR", "mediapipe")  # opencv, mediapipe, or none
+FACE_DETECTOR = os.environ.get("TIKTOK_FACE_DETECTOR", "opencv")  # opencv, mediapipe, or none
 
 # YouTube download settings
 YT_DOWNLOAD_RESOLUTION = os.environ.get("TIKTOK_YT_DOWNLOAD_RESOLUTION", "720p")

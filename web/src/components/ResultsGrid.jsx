@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, Play, Share2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+
 
 const ResultsGrid = ({ results, onReset }) => {
   if (!results || !results.clips || results.clips.length === 0) return null;
@@ -21,13 +21,9 @@ const ResultsGrid = ({ results, onReset }) => {
 
        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
          {results.clips.map((clip, index) => (
-           <motion.div 
+           <div 
              key={index}
-             initial={{ opacity: 0, scale: 0.9, y: 20 }}
-             animate={{ opacity: 1, scale: 1, y: 0 }}
-             whileHover={{ y: -5, transition: { duration: 0.2 } }}
-             transition={{ delay: index * 0.1 }}
-             className="bg-slate-900/50 backdrop-blur-sm rounded-xl overflow-hidden border border-slate-800 group hover:border-primary-500/50 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300"
+             className="bg-slate-900/50 backdrop-blur-sm rounded-xl overflow-hidden border border-slate-800 group hover:border-primary-500/50 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4"
            >
              <div className="aspect-[9/16] bg-black relative group-hover:ring-1 ring-white/10 transition-all">
                {/* Video/Thumbnail Placeholder */}
@@ -68,7 +64,7 @@ const ResultsGrid = ({ results, onReset }) => {
                  </button>
                </div>
              </div>
-           </motion.div>
+           </div>
          ))}
        </div>
     </div>

@@ -137,73 +137,20 @@ class ViralClipExtractor:
         """
         if clip_duration is None:
             clip_duration = config.DEFAULT_CLIP_DURATION
-        
-        # Ensure model is ready
-        self._ensure_model_ready()
-        
-        # Check video duration to avoid invalid segments
-        video_duration = self.clipper.get_video_duration(video_path)
-        if video_duration < clip_duration:
-            logger.warning(f"Video shorter than clip duration ({video_duration:.2f}s < {clip_duration:.2f}s). Using full video.")
-            clip_duration = video_duration
-            
-        # Check if we can extract the requested number of clips
-        max_possible_clips = int(video_duration / (clip_duration + min_gap))
-        if max_possible_clips < num_clips:
-            logger.warning(f"Video too short for {num_clips} non-overlapping clips. Can extract at most {max_possible_clips}.")
-            num_clips = max(1, max_possible_clips)
-            
-        logger.info(f"Finding {num_clips} viral clips of {clip_duration:.2f}s each in {video_path}")
-        
-        # Score video segments
-        start_time = time.time()
-        segment_scores = self.engagement_model.score_video_segments(
+
+        # 1. Find best segments (candidates)
+        best_segments = self.find_candidates(
             video_path, 
+            num_clips=num_clips, 
+            clip_duration=clip_duration,
+            min_gap=min_gap,
             segment_duration=segment_duration
         )
-        
-        if not segment_scores or len(segment_scores) == 0:
-            logger.error("No scorable segments found")
+
+        if not best_segments:
             return []
-            
-        logger.debug(f"Scored {len(segment_scores)} segments in {time.time()-start_time:.2f}s")
         
-        # Convert to numpy arrays for easier manipulation
-        times = np.array([s[0] for s in segment_scores])
-        scores = np.array([s[1] for s in segment_scores])
-        
-        # Sort by time to ensure proper order
-        sort_idx = np.argsort(times)
-        times = times[sort_idx]
-        scores = scores[sort_idx]
-        
-        # Extract multiple non-overlapping clips
-        best_segments = []
-        excluded_ranges = []
-        
-        # First find all the best segments
-        for i in range(num_clips):
-            # Find best clip avoiding excluded ranges
-            # Find best clip avoiding excluded ranges
-            best_start, best_score = self._find_best_clip_window_efficient(
-                times, scores, clip_duration, excluded_ranges, video_path=video_path
-            )
-            
-            # If we couldn't find another good clip, break
-            if best_start is None or best_score < 0:
-                break
-                
-            best_end = best_start + clip_duration
-            
-            # Add this range (plus buffer) to excluded ranges
-            buffer_start = max(0, best_start - min_gap)
-            buffer_end = best_end + min_gap
-            excluded_ranges.append((buffer_start, buffer_end))
-            
-            logger.info(f"Clip {i+1}: {best_start:.2f}s to {best_end:.2f}s (score: {best_score:.4f})")
-            best_segments.append((i, best_start, best_end, best_score))
-        
-        # Now process all the clips, possibly in parallel
+        # 2. Process all the clips, possibly in parallel
         result_clips = []
         
         # Update the processing logic to include metadata
@@ -286,6 +233,82 @@ class ViralClipExtractor:
         
         logger.info(f"Extracted {len(result_clips)} out of {len(best_segments)} viral clips")
         return result_clips
+
+    def find_candidates(self, video_path, num_clips=3, clip_duration=None, min_gap=1.0, segment_duration=1.0):
+        """Find the best clip candidates but do not extract them yet.
+        
+        Returns:
+            list: List of tuples (index, start_time, end_time, score)
+        """
+        if clip_duration is None:
+            clip_duration = config.DEFAULT_CLIP_DURATION
+        
+        # Ensure model is ready
+        self._ensure_model_ready()
+        
+        # Check video duration
+        video_duration = self.clipper.get_video_duration(video_path)
+        if video_duration < clip_duration:
+            logger.warning(f"Video shorter than clip duration ({video_duration:.2f}s < {clip_duration:.2f}s). using full video")
+            clip_duration = video_duration
+            
+        # Check max possible clips
+        max_possible_clips = int(video_duration / (clip_duration + min_gap))
+        if max_possible_clips < num_clips:
+            # logger.warning(f"Video too short for {num_clips} clips. Reducing to {max_possible_clips}.")
+            num_clips = max(1, max_possible_clips)
+            
+        logger.info(f"Analyzing candidates: {num_clips} clips, {clip_duration:.2f}s each")
+        
+        # Score video segments
+        start_time = time.time()
+        segment_scores = self.engagement_model.score_video_segments(
+            video_path, 
+            segment_duration=segment_duration
+        )
+        
+        if not segment_scores or len(segment_scores) == 0:
+            logger.error("No scorable segments found")
+            return []
+            
+        logger.debug(f"Scored {len(segment_scores)} segments in {time.time()-start_time:.2f}s")
+        
+        # Convert to numpy arrays
+        times = np.array([s[0] for s in segment_scores])
+        scores = np.array([s[1] for s in segment_scores])
+        
+        # Sort by time
+        sort_idx = np.argsort(times)
+        times = times[sort_idx]
+        scores = scores[sort_idx]
+        
+        best_segments = []
+        excluded_ranges = []
+        
+        for i in range(num_clips):
+            best_start, best_score = self._find_best_clip_window_efficient(
+                times, scores, clip_duration, excluded_ranges, video_path=video_path
+            )
+            
+            if best_start is None or best_score < 0:
+                break
+                
+            best_end = best_start + clip_duration
+            
+            buffer_start = max(0, best_start - min_gap)
+            buffer_end = best_end + min_gap
+            excluded_ranges.append((buffer_start, buffer_end))
+            
+            # Cast to native python types to avoid serialization issues
+            best_segments.append((
+                int(i), 
+                float(best_start), 
+                float(best_end), 
+                float(best_score)
+            ))
+            
+        logger.info(f"find_candidates returning: {best_segments}")
+        return best_segments
     
     # Update _get_output_path to use the improved naming
 
@@ -452,24 +475,31 @@ class ViralClipExtractor:
             
             logger.info(f"Analyzing hooks for top {len(top_candidates)} candidates...")
             
-            for start_t, visual_score in top_candidates:
-                # Calculate hook score (0-1)
-                hook_score = self.hook_optimizer.calculate_hook_score(video_path, start_t)
+            try:
+                for start_t, visual_score in top_candidates:
+                    try:
+                        # Calculate hook score (0-1)
+                        hook_score = self.hook_optimizer.calculate_hook_score(video_path, start_t)
+                        
+                        # Combine scores: 70% Visual, 30% Hook
+                        # Ensure visual score is roughly normalized? It usually is 0-1.
+                        combined_score = (visual_score * 0.7) + (hook_score * 0.3)
+                        
+                        logger.debug(f"Candidate {start_t:.2f}s: Visual={visual_score:.3f}, Hook={hook_score:.3f} -> Combined={combined_score:.3f}")
+                        
+                        if combined_score > final_best_score:
+                            final_best_score = combined_score
+                            final_best_candidate = (start_t, combined_score) 
+                    except Exception as e:
+                        logger.warning(f"Hook analysis failed for candidate at {start_t}s: {e}")
+                        continue
                 
-                # Combine scores: 70% Visual, 30% Hook
-                # Ensure visual score is roughly normalized? It usually is 0-1.
-                combined_score = (visual_score * 0.7) + (hook_score * 0.3)
-                
-                logger.debug(f"Candidate {start_t:.2f}s: Visual={visual_score:.3f}, Hook={hook_score:.3f} -> Combined={combined_score:.3f}")
-                
-                if combined_score > final_best_score:
-                    final_best_score = combined_score
-                    final_best_candidate = (start_t, combined_score) # Return combined score? Or original? 
-                    # Returning combined seems fair for ranking.
-            
-            if final_best_candidate:
-                return final_best_candidate
-            else:
+                if final_best_candidate:
+                    return final_best_candidate
+                else:
+                    return candidates[0]
+            except Exception as e:
+                logger.error(f"Critical error in hook optimization: {e}. Returning best visual candidate.")
                 return candidates[0]
                 
         else:

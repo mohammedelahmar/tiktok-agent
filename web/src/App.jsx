@@ -5,6 +5,7 @@ import InputSection from './components/InputSection';
 import SettingsSection from './components/SettingsSection';
 import ProcessingStatus from './components/ProcessingStatus';
 import ResultsGrid from './components/ResultsGrid';
+import ReviewStage from './components/ReviewStage';
 
 const API_BASE = '/api';
 
@@ -28,7 +29,9 @@ function App() {
     watermark_text: '',
     generate_thumbnail: true,
     captions_enabled: false,
-    face_detection: 'mediapipe'
+
+    face_detection: 'mediapipe',
+    mode: 'analyze' // 'process' or 'analyze'
   });
 
   // Poll for job status
@@ -43,6 +46,21 @@ function App() {
           if (response.data.status === 'completed') {
             setResults(response.data.result);
             setStage('results');
+            clearInterval(interval);
+          } else if (response.data.status === 'analyzed') {
+            // New state for manual review
+            // Fix: Extract the inner result payload, not the whole job status
+            // Explicitly construct object to avoid any spread issues
+            const resultData = response.data.result || {};
+            setResults({ 
+              candidates: resultData.candidates || [],
+              video_filename: resultData.video_filename,
+              mode: resultData.mode,
+              success: resultData.success,
+              job_id_ref: jobId,
+              config: response.data.config 
+            }); 
+            setStage('review');
             clearInterval(interval);
           } else if (response.data.status === 'failed') {
             setError(response.data.message);
@@ -79,6 +97,7 @@ function App() {
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
          if (params.captions_enabled) endpoint += `&captions=true`;
+         if (params.mode === 'analyze') endpoint += `&mode=analyze`;
       } else {
          // Query params for File
          endpoint += `?filename=${encodeURIComponent(params.source_path)}`;
@@ -87,6 +106,7 @@ function App() {
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
          if (params.captions_enabled) endpoint += `&captions=true`;
+         if (params.mode === 'analyze') endpoint += `&mode=analyze`;
       }
 
       const response = await axios.post(`${API_BASE}${endpoint}`);
@@ -107,6 +127,13 @@ function App() {
     setResults(null);
     setError(null);
     setParams(prev => ({ ...prev, source_path: '' })); // Keep settings, clear input
+  };
+  
+  const handleRenderStart = (newJobId) => {
+      setJobId(newJobId);
+      setStage('processing');
+      setJobStatus({ status: 'pending', message: 'Starting render...' });
+      // Polling will restart due to stage change + jobId presence
   };
 
   return (
@@ -181,6 +208,11 @@ function App() {
         {/* Results Stage */}
         {stage === 'results' && (
            <ResultsGrid results={results} onReset={resetApp} />
+        )}
+        
+        {/* Review Stage */}
+        {stage === 'review' && (
+           <ReviewStage job={results} onRenderStart={handleRenderStart} />
         )}
       </main>
     </div>

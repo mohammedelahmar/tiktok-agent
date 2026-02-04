@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-react';
-import { motion } from 'framer-motion';
+
 
 const ProcessingStatus = ({ job, onReset }) => {
   if (!job) return null;
@@ -22,10 +22,8 @@ const ProcessingStatus = ({ job, onReset }) => {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-slate-900/80 backdrop-blur-lg rounded-xl p-8 border border-slate-700/50 shadow-2xl text-center max-w-2xl mx-auto relative overflow-hidden"
+    <div 
+      className="bg-slate-900/80 backdrop-blur-lg rounded-xl p-8 border border-slate-700/50 shadow-2xl text-center max-w-2xl mx-auto relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500"
     >
       {/* Background Pulse */}
       <div className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-purple-500/10 animate-pulse pointer-events-none"></div>
@@ -59,11 +57,9 @@ const ProcessingStatus = ({ job, onReset }) => {
 
       {/* Progress Bar */}
       <div className="w-full bg-slate-800 rounded-full h-2 mb-4 overflow-hidden relative z-10">
-        <motion.div 
-          className={`h-full ${getProgressColor()} shadow-[0_0_10px_rgba(59,130,246,0.5)]`}
-          initial={{ width: 0 }}
-          animate={{ width: job.status === 'completed' ? '100%' : job.status === 'failed' ? '100%' : '60%' }}
-          transition={{ duration: 0.5 }}
+        <div 
+          className={`h-full ${getProgressColor()} shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-500`}
+          style={{ width: job.status === 'completed' ? '100%' : job.status === 'failed' ? '100%' : '60%' }}
         />
       </div>
       
@@ -86,7 +82,7 @@ const ProcessingStatus = ({ job, onReset }) => {
            </button>
        )}
 
-    </motion.div>
+    </div>
   );
 };
 

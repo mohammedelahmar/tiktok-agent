@@ -143,6 +143,24 @@ const SettingsSection = ({ params, onChange }) => {
                 </div>
            </div>
 
+           <div className="flex items-center gap-3 p-3 bg-slate-950/50 rounded-lg border border-slate-800">
+               <Scissors size={16} className="text-slate-400" />
+               <div className="flex-1">
+                   <p className="text-sm text-slate-300">Review Candidates</p>
+                   <p className="text-xs text-slate-500">Manually adjust clips before rendering</p>
+               </div>
+               <div 
+                  onClick={() => handleChange('mode', params.mode === 'analyze' ? 'process' : 'analyze')}
+                  className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${
+                      params.mode === 'analyze' ? 'bg-primary-600' : 'bg-slate-700'
+                  }`}
+                >
+                   <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${
+                       params.mode === 'analyze' ? 'left-6' : 'left-1'
+                   }`} />
+                </div>
+           </div>
+
         </div>
       </div>
     </div>

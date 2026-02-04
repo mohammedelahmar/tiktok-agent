@@ -8,7 +8,11 @@ import tempfile
 import librosa
 import scipy.signal
 from tqdm import tqdm
-import mediapipe as mp
+try:
+    import mediapipe as mp
+except ImportError:
+    mp = None
+    logger.warning("MediaPipe not installed. Face detection will use OpenCV or be disabled.")
 
 import config
 from utils.logger import logger
@@ -46,8 +50,12 @@ class EngagementModel:
                 return
                 
             if self.face_detector_type == "mediapipe":
-                # Use MediaPipe face detection
-                mp_face_detection = mp.solutions.face_detection
+                if mp is None:
+                    logger.warning("MediaPipe selected but not installed. Falling back to OpenCV.")
+                    self.face_detector_type = "opencv"
+                else:
+                    # Use MediaPipe face detection
+                    mp_face_detection = mp.solutions.face_detection
                 self.face_detector = None  # Not using OpenCV
                 self.mp_face_detection = mp_face_detection.FaceDetection(
                     model_selection=1,  # 0 for short-range, 1 for full-range detection
