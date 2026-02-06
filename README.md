@@ -14,6 +14,8 @@ It features a stunning **Neon Glass / Cyberpunk Lab** UI where you can review AI
 *   **📱 9:16 Auto-Formatting**: Smart cropping and background blur modes to convert landscape video to vertical format.
 *   **🎯 Smart Hook Optimization**: Automatically detects and preserves the most engaging "hook" moments.
 *   **📝 AI Metadata Generator**: Generates viral titles, descriptions, and hashtags using Google Gemini LLM.
+*   **💾 Job Persistence**: Automatically saves your progress and job history, so you never lose your work.
+*   **📜 History Dashboard**: View past jobs, check their status, and easy access to results.
 *   **🌊 Watermarking**: Add custom text or image watermarks.
 *   **📥 Multi-Source**: Support for YouTube URLs and local file uploads.
 
@@ -63,7 +65,7 @@ You need to run the backend and frontend in separate terminals.
 **Terminal 1 (Backend):**
 ```bash
 # From root directory
-python web_api.py
+python -m app.main
 ```
 
 **Terminal 2 (Frontend):**
@@ -121,7 +123,8 @@ python main.py --file video.mp4 --format blur --watermark --watermark-text "@MyC
 
 ## 🏗️ Architecture
 
-*   **Backend**: Python, FastAPI, OpenCV, PyTorch, MoviePy
+*   **Backend**: Python, FastAPI (Modular `app/` structure), OpenCV, PyTorch, MoviePy
+*   **Persistence**: JSON-based job history storage (`jobs.json`)
 *   **Frontend**: React, Vite, TailwindCSS (Neon/Glass Theme), Lucide Icons
 *   **AI Models**:
     *   **Face Detection**: MediaPipe / OpenCV DNN

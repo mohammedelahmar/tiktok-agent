@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Sparkles, Zap, Github } from 'lucide-react';
+import { Sparkles, Zap, Github, History as HistoryIcon, LayoutGrid } from 'lucide-react';
 import InputSection from './components/InputSection';
 import SettingsSection from './components/SettingsSection';
 import ProcessingStatus from './components/ProcessingStatus';
 import ResultsGrid from './components/ResultsGrid';
 import ReviewStage from './components/ReviewStage';
+import HistorySection from './components/HistorySection';
 
 const API_BASE = '/api';
 
 function App() {
   // Application State
-  const [stage, setStage] = useState('input'); // input, processing, results
+  const [stage, setStage] = useState('input'); // input, history, processing, results, review
   const [jobId, setJobId] = useState(null);
   const [jobStatus, setJobStatus] = useState(null);
   const [results, setResults] = useState(null);
@@ -139,6 +140,30 @@ function App() {
       // Polling will restart due to stage change + jobId presence
   };
 
+  const handleLoadJob = (job) => {
+     setJobId(job.job_id);
+     setJobStatus(job); // Pre-fill status
+     
+     if (job.status === 'completed') {
+       setResults(job.result);
+       setStage('results');
+     } else if (job.status === 'analyzed') {
+        const resultData = job.result || {};
+        setResults({
+           candidates: resultData.candidates || [],
+           video_filename: resultData.video_filename,
+           mode: resultData.mode,
+           success: resultData.success,
+           job_id_ref: job.job_id,
+           config: job.config
+        });
+        setStage('review');
+     } else {
+        // If it was processing or other state, just go to processing view and let poller handle it
+        setStage('processing');
+     }
+  };
+
   return (
     <div className="relative min-h-screen font-sans selection:bg-rose-500/30 overflow-x-hidden">
       
@@ -155,7 +180,7 @@ function App() {
       {/* Header */}
       <header className="relative z-50 border-b border-white/5 bg-black/20 backdrop-blur-md sticky top-0">
         <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setStage('input')}>
             <div className="bg-gradient-to-br from-rose-500 to-orange-500 p-2 rounded-xl shadow-lg shadow-rose-500/20">
               <Sparkles size={20} className="text-white" />
             </div>
@@ -164,6 +189,16 @@ function App() {
             </h1>
           </div>
           <div className="flex items-center gap-4">
+             <button 
+                onClick={() => setStage(stage === 'history' ? 'input' : 'history')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border border-transparent ${
+                   stage === 'history' ? 'bg-white/10 text-white border-white/10' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+             >
+                {stage === 'history' ? <LayoutGrid size={18} /> : <HistoryIcon size={18} />}
+                <span className="text-sm font-medium">{stage === 'history' ? 'Dashboard' : 'History'}</span>
+             </button>
+             <div className="h-6 w-[1px] bg-white/10" />
              <a href="#" className="p-2 hover:bg-white/5 rounded-full transition-colors text-gray-400 hover:text-white">
                <Github size={20} />
              </a>
@@ -229,6 +264,11 @@ function App() {
             {/* Review Stage */}
             {stage === 'review' && (
                <ReviewStage job={results} onRenderStart={handleRenderStart} />
+            )}
+
+            {/* History Stage */}
+            {stage === 'history' && (
+               <HistorySection onLoadJob={handleLoadJob} />
             )}
           </div>
 
