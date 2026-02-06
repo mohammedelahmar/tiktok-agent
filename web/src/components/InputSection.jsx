@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Upload, Youtube, FileVideo, Link } from 'lucide-react';
 import axios from 'axios';
+import Card from './ui/Card';
+import Input from './ui/Input';
+import Button from './ui/Button';
 
 const InputSection = ({ onInputParamsChange }) => {
   const [activeTab, setActiveTab] = useState('youtube');
@@ -37,19 +40,21 @@ const InputSection = ({ onInputParamsChange }) => {
   };
 
   return (
-    <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 shadow-xl mb-6">
-      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-        <span className="bg-primary-600 p-1.5 rounded-lg"><Link size={18} /></span>
+    <Card className="p-8">
+      <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+        <span className="bg-gradient-to-br from-rose-500 to-orange-500 p-2 rounded-lg shadow-lg shadow-rose-500/20">
+          <Link size={18} className="text-white" />
+        </span>
         Input Source
       </h2>
       
-      <div className="flex gap-4 mb-6 bg-slate-800/50 p-1 rounded-lg w-fit">
+      <div className="flex gap-4 mb-8 p-1 bg-black/40 rounded-xl w-fit border border-white/5 backdrop-blur-md">
         <button
           onClick={() => setActiveTab('youtube')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium ${
             activeTab === 'youtube' 
-              ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20' 
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              ? 'bg-gradient-to-r from-rose-600 to-orange-600 text-white shadow-lg shadow-rose-500/20' 
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <Youtube size={18} />
@@ -57,10 +62,10 @@ const InputSection = ({ onInputParamsChange }) => {
         </button>
         <button
           onClick={() => setActiveTab('file')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium ${
             activeTab === 'file' 
-              ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20' 
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              ? 'bg-gradient-to-r from-rose-600 to-orange-600 text-white shadow-lg shadow-rose-500/20' 
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <FileVideo size={18} />
@@ -68,24 +73,20 @@ const InputSection = ({ onInputParamsChange }) => {
         </button>
       </div>
 
-      <div className="relative">
+      <div className="relative animate-in fade-in duration-300">
         {activeTab === 'youtube' ? (
-          <div className="space-y-2">
-            <label className="text-sm text-slate-400 font-medium">YouTube Video URL</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={url}
-                onChange={handleUrlChange}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
-              />
-            </div>
+          <div className="space-y-3">
+            <Input
+              label="YouTube Video URL"
+              value={url}
+              onChange={handleUrlChange}
+              placeholder="https://www.youtube.com/watch?v=..."
+            />
           </div>
         ) : (
-          <div className="space-y-2">
-            <label className="text-sm text-slate-400 font-medium">Local Video File</label>
-            <div className="border-2 border-dashed border-slate-700 rounded-lg p-8 text-center hover:border-primary-500 transition-colors bg-slate-950/30">
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 ml-1">Local Video File</label>
+            <div className="border-2 border-dashed border-white/10 rounded-xl p-10 text-center hover:border-rose-500/50 hover:bg-white/5 transition-all cursor-pointer group bg-black/20">
               <input
                 type="file"
                 onChange={handleFileUpload}
@@ -93,22 +94,22 @@ const InputSection = ({ onInputParamsChange }) => {
                 className="hidden"
                 id="video-upload"
               />
-              <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center gap-3">
-                <div className={`p-4 rounded-full bg-slate-800 ${isUploading ? 'animate-pulse' : ''}`}>
-                  <Upload size={24} className="text-primary-400" />
+              <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center gap-4 w-full h-full">
+                <div className={`p-4 rounded-full bg-white/5 group-hover:bg-rose-500/20 transition-colors ${isUploading ? 'animate-pulse' : ''}`}>
+                  <Upload size={24} className="text-gray-400 group-hover:text-rose-400" />
                 </div>
                 <div>
-                  <p className="font-medium text-slate-200">
+                  <p className="font-medium text-gray-200 group-hover:text-white transition-colors">
                     {filename || (isUploading ? "Uploading..." : "Click to browse or drag file")}
                   </p>
-                  <p className="text-sm text-slate-500 mt-1">MP4, MKV, MOV supported</p>
+                  <p className="text-sm text-gray-500 mt-2">MP4, MKV, MOV supported</p>
                 </div>
               </label>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 

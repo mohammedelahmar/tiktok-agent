@@ -2,14 +2,14 @@
 
 **TikTok Agent** is an advanced AI-powered tool that automatically extracts viral-worthy clips from long-form videos and formats them for TikTok, YouTube Shorts, and Instagram Reels.
 
-It features a **modern Web UI** where you can review AI-selected candidates, manually trim clips with frame precision, and batch render your final videos.
+It features a stunning **Neon Glass / Cyberpunk Lab** UI where you can review AI-selected candidates, manually trim clips with frame precision, and batch render your final videos.
 
 ---
 
 ## ✨ Features
 
 *   **🤖 AI Viral Detection**: Automatically identifies the most engaging segments using motion scoring and scene analysis.
-*   **🖥️ Interactive Web UI**: A beautiful, dark-mode interface for managing your video projects.
+*   **💎 Neon Glass UI**: A premium, "Dark Mode Glassmorphism" interface with animated ambient backgrounds and bento-grid layout.
 *   **✂️ Precision Trimmer**: Watch AI-selected clips and fine-tune start/end times with a frame-perfect scrubber before rendering.
 *   **📱 9:16 Auto-Formatting**: Smart cropping and background blur modes to convert landscape video to vertical format.
 *   **🎯 Smart Hook Optimization**: Automatically detects and preserves the most engaging "hook" moments.
@@ -122,7 +122,7 @@ python main.py --file video.mp4 --format blur --watermark --watermark-text "@MyC
 ## 🏗️ Architecture
 
 *   **Backend**: Python, FastAPI, OpenCV, PyTorch, MoviePy
-*   **Frontend**: React, Vite, TailwindCSS, Lucide Icons
+*   **Frontend**: React, Vite, TailwindCSS (Neon/Glass Theme), Lucide Icons
 *   **AI Models**:
     *   **Face Detection**: MediaPipe / OpenCV DNN
     *   **Visual Interest**: Motion energy & scene complexity analysis

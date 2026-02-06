@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Play, Clock, Star, Edit3, ArrowRight, Video } from 'lucide-react';
 import VideoTrimmer from './VideoTrimmer';
 import axios from 'axios';
+import Card from './ui/Card';
 
 const API_BASE = '/api';
 
@@ -71,55 +72,57 @@ const ReviewStage = ({ job, onRenderStart }) => {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-2 tracking-tight">Review Candidates</h2>
-        <p className="text-slate-400">AI found {clips.length} viral moments. Adjust them below before rendering.</p>
+        <h2 className="text-3xl font-bold mb-2 tracking-tight text-white">Review Candidates</h2>
+        <p className="text-gray-400">AI found <span className="text-rose-400 font-bold">{clips.length}</span> viral moments. Adjust them below before rendering.</p>
       </div>
 
       {/* Clip List */}
       <div className="grid gap-4 max-w-3xl mx-auto">
         {clips.map((clip) => (
-          <div key={clip.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition-colors group">
+          <Card key={clip.id} className="p-4 flex items-center justify-between group hover:border-rose-500/30 transition-all duration-300">
             
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500Group-hover:text-primary-400">
-                 <Video size={24} className="text-slate-500 group-hover:text-primary-400 transition-colors" />
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-xl bg-black/50 flex items-center justify-center border border-white/5 group-hover:border-rose-500/20 group-hover:bg-rose-500/10 transition-all">
+                 <Video size={24} className="text-gray-500 group-hover:text-rose-400 transition-colors" />
               </div>
               
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                   <h4 className="font-semibold text-white">Clip #{clip.id + 1}</h4>
-                   <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Star size={10} /> {clip.score.toFixed(2)}
+                   <h4 className="font-bold text-white text-lg">Clip #{clip.id + 1}</h4>
+                   <span className="text-xs bg-cyan-950/30 text-cyan-400 px-2 py-0.5 rounded-full flex items-center gap-1 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
+                      <Star size={10} className="fill-cyan-400" /> {clip.score.toFixed(2)}
                    </span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-slate-400">
-                   <span className="flex items-center gap-1"><Clock size={14} /> {formatTime(clip.start)} - {formatTime(clip.end)}</span>
-                   <span>Duration: {(clip.end - clip.start).toFixed(1)}s</span>
+                <div className="flex items-center gap-4 text-sm text-gray-400 font-mono">
+                   <span className="flex items-center gap-1.5"><Clock size={14} className="text-gray-500" /> {formatTime(clip.start)} - {formatTime(clip.end)}</span>
+                   <span className="text-gray-600">|</span>
+                   <span>Duration: <span className="text-gray-300">{(clip.end - clip.start).toFixed(1)}s</span></span>
                 </div>
               </div>
             </div>
 
             <button 
               onClick={() => handleEdit(clip)}
-              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-all flex items-center gap-2 border border-transparent hover:border-slate-600"
+              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-all flex items-center gap-2 border border-white/5 hover:border-white/20 shadow-lg hover:shadow-xl active:scale-95"
             >
               <Edit3 size={16} />
               Adjust
             </button>
-          </div>
+          </Card>
         ))}
       </div>
 
       {/* Action Footer */}
-      <div className="flex justify-center pt-8 border-t border-slate-900/50">
+      <div className="flex justify-center pt-8 border-t border-white/5">
           <button
             onClick={handleRenderAll}
             disabled={isSubmitting}
-            className="group relative inline-flex items-center justify-center px-8 py-4 font-semibold text-white transition-all duration-200 bg-emerald-600 rounded-full hover:bg-emerald-500 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-lg shadow-emerald-900/20"
+            className="group relative inline-flex items-center justify-center px-10 py-5 font-bold text-white transition-all duration-300 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full hover:bg-emerald-500 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-xl shadow-emerald-500/20"
           >
-            <span className="relative flex items-center gap-2 text-lg">
+            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+            <span className="relative flex items-center gap-3 text-lg">
               {isSubmitting ? 'Starting Render...' : 'Render All Clips'}
-              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
             </span>
           </button>
       </div>

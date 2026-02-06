@@ -4,33 +4,32 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased;
-    background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 100%);
+    @apply bg-[#050505] text-gray-300 antialiased;
+    /* Deep void background */
+    background-color: #050505;
+    background-image:
+      radial-gradient(circle at 15% 50%, rgba(244, 63, 94, 0.08) 0%, transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(6, 182, 212, 0.08) 0%, transparent 25%);
     min-height: 100vh;
   }
 }
 
-/* Animated Gradient Blob */
-@keyframes blob {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-
-  33% {
-    transform: translate(30px, -50px) scale(1.1);
-  }
-
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
-
-  100% {
-    transform: translate(0px, 0px) scale(1);
-  }
+/* Custom Scrollbar for Webkit */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-.animate-blob {
-  animation: blob 7s infinite;
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .animation-delay-2000 {
