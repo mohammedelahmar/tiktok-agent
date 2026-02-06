@@ -63,6 +63,36 @@ const ResultsGrid = ({ results, onReset }) => {
                    <Share2 size={16} /> Share
                  </button>
                </div>
+               
+               {clip.metadata && (
+                 <div className={`mt-4 p-4 rounded-lg border text-sm ${
+                    clip.metadata.error 
+                      ? 'bg-red-500/10 border-red-500/20 text-red-200' 
+                      : 'bg-slate-950/50 border-slate-800'
+                 }`}>
+                    {clip.metadata.error ? (
+                        <div className="flex items-start gap-2">
+                             <span className="text-xl">⚠️</span>
+                             <div>
+                                 <h5 className="font-semibold mb-1">Metadata Generation Failed</h5>
+                                 <p className="text-xs opacity-80">{clip.metadata.error}</p>
+                             </div>
+                        </div>
+                    ) : (
+                        <>
+                            <h5 className="font-semibold text-primary-400 mb-1">{clip.metadata.title}</h5>
+                            <p className="text-slate-400 text-xs mb-2 line-clamp-3">{clip.metadata.description}</p>
+                            <div className="flex flex-wrap gap-1">
+                            {clip.metadata.hashtags && clip.metadata.hashtags.map((tag, i) => (
+                                <span key={i} className="text-blue-400 text-xs bg-blue-500/10 px-1.5 py-0.5 rounded">
+                                {tag}
+                                </span>
+                            ))}
+                            </div>
+                        </>
+                    )}
+                 </div>
+               )}
              </div>
            </div>
          ))}
@@ -70,5 +100,6 @@ const ResultsGrid = ({ results, onReset }) => {
     </div>
   );
 };
+
 
 export default ResultsGrid;

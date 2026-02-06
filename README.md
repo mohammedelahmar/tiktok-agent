@@ -13,6 +13,7 @@ It features a **modern Web UI** where you can review AI-selected candidates, man
 *   **✂️ Precision Trimmer**: Watch AI-selected clips and fine-tune start/end times with a frame-perfect scrubber before rendering.
 *   **📱 9:16 Auto-Formatting**: Smart cropping and background blur modes to convert landscape video to vertical format.
 *   **🎯 Smart Hook Optimization**: Automatically detects and preserves the most engaging "hook" moments.
+*   **📝 AI Metadata Generator**: Generates viral titles, descriptions, and hashtags using Google Gemini LLM.
 *   **🌊 Watermarking**: Add custom text or image watermarks.
 *   **📥 Multi-Source**: Support for YouTube URLs and local file uploads.
 
@@ -24,6 +25,7 @@ It features a **modern Web UI** where you can review AI-selected candidates, man
 *   Python 3.8+
 *   Node.js & npm
 *   FFmpeg (must be in your system PATH)
+*   **Google Gemini API Key** (optional, for AI metadata)
 
 ### 1. Backend Setup
 
@@ -41,6 +43,10 @@ source venv/bin/activate
 
 # Install Python dependencies
 pip install -r requirements.txt
+
+# Setup Environment Variables
+# Create a .env file and add your API key:
+# GEMINI_API_KEY=your_api_key_here
 ```
 
 ### 2. Frontend Setup
@@ -74,6 +80,7 @@ Open your browser at `http://localhost:5173` to start creating!
 
 1.  **Input**: Paste a YouTube URL or upload a video file.
 2.  **Configure**: Set the number of clips, duration, and format style (Crop/Blur).
+    *   *Optional*: Enable **"AI Metadata (SEO)"** to generate titles/tags (requires API key).
 3.  **Analyze**: The AI scans the video (take a coffee break ☕).
 4.  **Review**:
     *   You'll see a list of "Viral Candidates" found by the AI.

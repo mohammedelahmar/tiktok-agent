@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 import torch  # Add import
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Base paths
 PROJECT_ROOT = Path(__file__).parent
@@ -72,3 +76,20 @@ S3_BUCKET_NAME = os.environ.get("TIKTOK_S3_BUCKET_NAME", "")
 S3_REGION = os.environ.get("TIKTOK_S3_REGION", "")  # AWS region, e.g., us-west-1
 S3_ACCESS_KEY = os.environ.get("TIKTOK_S3_ACCESS_KEY", "")
 S3_SECRET_KEY = os.environ.get("TIKTOK_S3_SECRET_KEY", "")
+
+# AI Metadata Generation settings
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("TIKTOK_GEMINI_API_KEY")
+
+METADATA_PROMPT_TEMPLATE = """
+Analyze the following video transcript and generate viral metadata for TikTok/YouTube Shorts.
+
+Transcript:
+{transcript}
+
+Return the result in JSON format with the following keys:
+- title: A catchy, viral hook title (max 50 chars).
+- description: A short, engaging description (max 150 chars).
+- hashtags: A list of 5-10 trending, relevant hashtags.
+
+Output JSON:
+"""

@@ -54,7 +54,8 @@ const ReviewStage = ({ job, onRenderStart }) => {
         watermark_enabled: job.config.watermark_enabled,
         watermark_text: job.config.watermark_text,
         generate_thumbnail: job.config.generate_thumbnail,
-        captions_enabled: job.config.captions_enabled
+        captions_enabled: job.config.captions_enabled,
+        generate_metadata: job.config.generate_metadata
       };
 
       const response = await axios.post(`${API_BASE}/render`, payload);

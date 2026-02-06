@@ -65,6 +65,18 @@ class Captioner:
                 
         return output_path
 
+    def extract_transcript(self, video_path):
+        """
+        Extract raw text transcript from video without burning captions.
+        Returns: String metadata of the whole video.
+        """
+        logger.info(f"Extracting transcript from: {video_path}")
+        segments, info = self.model.transcribe(video_path, word_timestamps=False)
+        
+        # Combine all segments into one text
+        full_text = " ".join([segment.text.strip() for segment in segments])
+        return full_text
+
     def _burn_subtitles(self, video_path, ass_path, output_path):
         """Burn .ass subtitles into video using ffmpeg-python."""
         stream = ffmpeg.input(video_path)

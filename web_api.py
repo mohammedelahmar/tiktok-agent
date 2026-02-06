@@ -8,6 +8,7 @@ from typing import Optional, List
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 import uvicorn
+import sys
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +58,7 @@ class ProcessingConfig(BaseModel):
     watermark_text: str = ""
     generate_thumbnail: bool = True
     captions_enabled: bool = False
+    generate_metadata: bool = False
     face_detection: str = "mediapipe"
     mode: str = "process" # 'process' or 'analyze'
 
@@ -68,6 +70,11 @@ class RenderRequest(BaseModel):
     watermark_text: str = ""
     generate_thumbnail: bool = True
     captions_enabled: bool = False
+    generate_metadata: bool = False
+
+class MetadataRequest(BaseModel):
+    job_id: Optional[str] = None
+    filename: Optional[str] = None
 
 class JobStatus(BaseModel):
     job_id: str
@@ -163,6 +170,24 @@ def process_video_task(job_id: str, cfg: dict):
                 'opacity': 0.7
             }
 
+        # Optimization: Init shared resources before loop
+        captioner_service = None
+        metadata_service = None
+        
+        if cfg.get('captions_enabled') or cfg.get('generate_metadata'):
+             try:
+                 from core.captioner import Captioner
+                 captioner_service = Captioner()
+             except Exception as e:
+                 logger.error(f"Failed to init Captioner: {e}")
+
+        if cfg.get('generate_metadata'):
+             try:
+                 from core.metadata_generator import MetadataGenerator
+                 metadata_service = MetadataGenerator()
+             except Exception as e:
+                 logger.error(f"Failed to init MetadataGenerator: {e}")
+
         for i, (clip_path, start, end, score) in enumerate(clips):
             # Format
             formatted_path = formatter.format_to_9_16(
@@ -172,16 +197,25 @@ def process_video_task(job_id: str, cfg: dict):
             )
             
             # Captions
-            # Captions
-            if cfg.get('captions_enabled'):
+            if cfg.get('captions_enabled') and captioner_service:
                  try:
-                     from core.captioner import Captioner
-                     # Re-instantiate for each clip to be safe in worker
-                     captioner_instance = Captioner() 
-                     formatted_path = captioner_instance.process_video(formatted_path)
+                     formatted_path = captioner_service.process_video(formatted_path)
                  except Exception as e:
                      logger.error(f"Captioning failed for clip {i}: {e}")
             
+            # Metadata (Title/Desc/Tags)
+            clip_metadata = None
+            if cfg.get('generate_metadata') and metadata_service and captioner_service:
+                try:
+                    # Extract transcript for this specific clip
+                    # Note: We use the formatted path (which might have music/watermark? No, usually clean audio)
+                    # Actually formatted_path has the audio.
+                    clip_transcript = captioner_service.extract_transcript(formatted_path)
+                    if clip_transcript:
+                        clip_metadata = metadata_service.generate_metadata(clip_transcript)
+                except Exception as e:
+                    logger.error(f"Metadata generation failed for clip {i}: {e}")
+
             # Thumbnail
             thumb_path = None
             if cfg['generate_thumbnail']:
@@ -197,7 +231,8 @@ def process_video_task(job_id: str, cfg: dict):
                     "thumbnail": os.path.basename(thumb_path) if thumb_path else None,
                     "score": score,
                     "start": start,
-                    "end": end
+                    "end": end,
+                    "metadata": clip_metadata
                 })
         
         return {"success": True, "clips": results}
@@ -256,6 +291,7 @@ async def start_youtube_job(url: str,
                           format_method: str = "crop",
                           watermark: str = None,
                           captions: bool = False,
+                          generate_metadata: bool = False,
                           mode: str = "process",
                           background_tasks: BackgroundTasks = None):
     
@@ -270,6 +306,7 @@ async def start_youtube_job(url: str,
         watermark_text=watermark or "",
         generate_thumbnail=True,
         captions_enabled=bool(captions),
+        generate_metadata=bool(generate_metadata),
         mode=mode
     )
     
@@ -302,6 +339,7 @@ async def start_file_job(filename: str,
                        format_method: str = "crop",
                        watermark: str = None,
                        captions: bool = False,
+                       generate_metadata: bool = False,
                        mode: str = "process",
                        background_tasks: BackgroundTasks = None):
                        
@@ -320,6 +358,7 @@ async def start_file_job(filename: str,
         watermark_text=watermark or "",
         generate_thumbnail=True,
         captions_enabled=bool(captions),
+        generate_metadata=bool(generate_metadata),
         mode=mode
     )
     
@@ -405,6 +444,25 @@ def process_render_task(job_id, video_path, clips, cfg):
                  except Exception as e:
                      logger.error(f"Captioning failed for clip {i}: {e}")
             
+             # Metadata (Title/Desc/Tags)
+             clip_metadata = None
+             if cfg.get('generate_metadata'):
+                try:
+                    from core.metadata_generator import MetadataGenerator
+                    if 'core.captioner' not in sys.modules:
+                         from core.captioner import Captioner
+                    
+                    # Ensure we have a captioner to get transcript
+                    captioner_service = Captioner()
+                    metadata_service = MetadataGenerator()
+                    
+                    clip_transcript = captioner_service.extract_transcript(formatted_path)
+                    if clip_transcript:
+                        clip_metadata = metadata_service.generate_metadata(clip_transcript)
+                except Exception as e:
+                    logger.error(f"Metadata generation failed for clip {i}: {e}")
+                    clip_metadata = {"error": str(e)}
+
              # Thumbnail
              thumb_path = None
              if cfg['generate_thumbnail']:
@@ -420,7 +478,8 @@ def process_render_task(job_id, video_path, clips, cfg):
                     "thumbnail": os.path.basename(thumb_path) if thumb_path else None,
                     "start": start,
                     "end": end,
-                    "score": score
+                    "score": score,
+                    "metadata": clip_metadata
                 })
          
          return {"success": True, "clips": results}
@@ -459,6 +518,102 @@ async def run_render_job(job_id, video_path, clips, config):
     except Exception as e:
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["message"] = f"Render error: {str(e)}"
+
+# --- Metadata Worker ---
+def process_metadata_task(job_id, video_path):
+    """
+    Worker for metadata generation (Transcription + LLM)
+    """
+    try:
+        from core.captioner import Captioner
+        from core.metadata_generator import MetadataGenerator
+        
+        # 1. Extract Transcript
+        # Check if we already have a transcript file? (Optimization for later)
+        # For now, always extract.
+        logger.info(f"Metadata Task: Extracting transcript for {video_path}")
+        captioner = Captioner() # This might be slow loading model
+        transcript = captioner.extract_transcript(video_path)
+        
+        if not transcript:
+            return {"success": False, "error": "Could not extract transcript (empty audio?)"}
+            
+        # 2. Generate Metadata
+        logger.info("Metadata Task: Generating metadata with LLM")
+        generator = MetadataGenerator()
+        metadata = generator.generate_metadata(transcript)
+        
+        if "error" in metadata:
+             return {"success": False, "error": metadata["error"]}
+             
+        return {
+            "success": True, 
+            "metadata": metadata,
+            "transcript": transcript
+        }
+        
+    except Exception as e:
+        logger.error(f"Metadata task error: {e}")
+        return {"success": False, "error": str(e)}
+
+async def run_metadata_job(job_id, video_path):
+    jobs[job_id]["status"] = "processing"
+    jobs[job_id]["message"] = "Generating AI metadata..."
+    
+    loop = asyncio.get_running_loop()
+    
+    try:
+        result = await loop.run_in_executor(
+            process_executor,
+            process_metadata_task,
+            job_id,
+            video_path
+        )
+        
+        if result["success"]:
+            jobs[job_id]["status"] = "completed"
+            jobs[job_id]["message"] = "Metadata generation complete"
+            jobs[job_id]["result"] = result
+        else:
+             jobs[job_id]["status"] = "failed"
+             jobs[job_id]["message"] = result.get("error", "Unknown error")
+             
+    except Exception as e:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["message"] = f"System error: {str(e)}"
+
+@app.post("/api/metadata/generate")
+async def generate_metadata(req: MetadataRequest, background_tasks: BackgroundTasks):
+    video_path = None
+    
+    # Resolve video path
+    if req.filename:
+        video_path = str(config.INPUTS_DIR / req.filename)
+    elif req.job_id:
+        stored_job = jobs.get(req.job_id)
+        if stored_job and stored_job.get("result"):
+             # Try to find video filename in result
+             res = stored_job["result"]
+             if "video_filename" in res:
+                 video_path = str(config.INPUTS_DIR / res["video_filename"])
+             # Fallback: maybe the job was a render job and 'path' is the output? 
+             # But metadata is usually for the source or a specific clip.
+             # Let's assume user wants metadata for the Source video of the job.
+    
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+        
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "job_id": job_id,
+        "status": "pending",
+        "created_at": time.time(),
+        "config": {"type": "metadata", "source": video_path}
+    }
+    
+    background_tasks.add_task(run_metadata_job, job_id, video_path)
+    
+    return {"job_id": job_id, "status": "pending"}
 
 
 @app.post("/api/render")
@@ -520,6 +675,7 @@ async def render_clips(req: RenderRequest, background_tasks: BackgroundTasks):
         watermark_text=req.watermark_text,
         generate_thumbnail=req.generate_thumbnail,
         captions_enabled=req.captions_enabled,
+        generate_metadata=req.generate_metadata,
         mode="process",
         num_clips=len(req.clips),
         clip_duration=0 

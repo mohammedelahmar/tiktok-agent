@@ -29,6 +29,7 @@ function App() {
     watermark_text: '',
     generate_thumbnail: true,
     captions_enabled: false,
+    generate_metadata: false,
 
     face_detection: 'mediapipe',
     mode: 'analyze' // 'process' or 'analyze'
@@ -97,6 +98,7 @@ function App() {
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
          if (params.captions_enabled) endpoint += `&captions=true`;
+         if (params.generate_metadata) endpoint += `&generate_metadata=true`;
          if (params.mode === 'analyze') endpoint += `&mode=analyze`;
       } else {
          // Query params for File
@@ -106,6 +108,7 @@ function App() {
          endpoint += `&format_method=${params.format_method}`;
          if (params.watermark_enabled) endpoint += `&watermark=${encodeURIComponent(params.watermark_text)}`;
          if (params.captions_enabled) endpoint += `&captions=true`;
+         if (params.generate_metadata) endpoint += `&generate_metadata=true`;
          if (params.mode === 'analyze') endpoint += `&mode=analyze`;
       }
 
